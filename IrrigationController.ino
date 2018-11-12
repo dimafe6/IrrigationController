@@ -22,13 +22,14 @@ float humidity;
 int light;
 float watherTemp;
 int rain;
+int groundHum;
 long interval;
 long thingSpeakInterval;
 long refreshInterval;
 float values[6];
 String pagesNames[] = {"Temp.","Pressure","Humidity","Light","Wather"};
 String pagesPostfix[] = {"*C","hPa","%","lux","*C"};
-int pagesLength = 4;
+int pagesLength = 5;
 int pageIndex = 0;
 
 HardwareSerial radioSerial(1);
@@ -75,6 +76,7 @@ void loop() {
       light = root["light"]; // 6
       watherTemp = root["watherTemp"]; // 23.00
       rain = root["rain"]; // 25669   
+      groundHum = root["groundHum"]; // 25669
 
       values[0] = temp;
       values[1] = pressure;
@@ -89,6 +91,8 @@ void loop() {
       Serial.print("Light: ");Serial.println(light);
       Serial.print("Wather temp: ");Serial.println(watherTemp);
       Serial.print("Rain: ");Serial.println(rain);
+      Serial.print("Ground humidity: ");Serial.println(groundHum);
+
 
       if (millis() - thingSpeakInterval > 10000) {
         thingSpeakInterval = millis();
@@ -100,6 +104,7 @@ void loop() {
         ThingSpeak.setField(5, light);
         ThingSpeak.setField(6, watherTemp);
         ThingSpeak.setField(7, rain);
+        ThingSpeak.setField(8, groundHum);
 
           // write to the ThingSpeak channel
         int x = ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
