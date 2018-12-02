@@ -1,138 +1,153 @@
 #include "secrets.h"
 #include <ArduinoJson.h>
-#include "SSD1306Wire.h"
 #include "ThingSpeak.h"
 #include <WiFi.h>
+#include "SPI.h"
+#include "TFT_eSPI.h"
+#include <SimpleTimer.h>
+#include "Free_Fonts.h"
 
 #define BAUD_RATE 9600
 
-SSD1306Wire  display(0x3c, 21, 22);
-WiFiClient  client;
+uint16_t touchCalibration[5] = { 214, 3478, 258, 3520, 5 };
 
 char ssid[] = SECRET_SSID;
 char pass[] = SECRET_PASS;
 
 unsigned long myChannelNumber = SECRET_CH_ID;
 const char * myWriteAPIKey = SECRET_WRITE_APIKEY;
-
-long ts;
-float temp;
-float pressure;
-float humidity;
-int light;
-float watherTemp;
-int rain;
-int groundHum;
-long interval;
 long thingSpeakInterval;
-long refreshInterval;
-float values[6];
-String pagesNames[] = {"Temp.","Pressure","Humidity","Light","Wather"};
-String pagesPostfix[] = {"*C","hPa","%","lux","*C"};
-int pagesLength = 5;
-int pageIndex = 0;
 
+SimpleTimer wifiTimer;
 HardwareSerial radioSerial(1);
-HardwareSerial gsmSerial(2);
+HardwareSerial gsmSerial(2); // 16, 17
+TFT_eSPI tft = TFT_eSPI();
+WiFiClient  client;
 
 void setup() {
   Serial.begin(BAUD_RATE);
 
-  WiFi.mode(WIFI_STA);   
-  ThingSpeak.begin(client);
+  initTft();
+  
+  initWiFi();
 
-  radioSerial.begin(BAUD_RATE, SERIAL_8N1, 5, 18);
-  gsmSerial.begin(BAUD_RATE); // 16, 17
-
-  display.init();
-  display.flipScreenVertically();
-  display.clear();  
+  radioSerial.begin(BAUD_RATE, SERIAL_8N1, 26, 27);
+  gsmSerial.begin(BAUD_RATE);
 }
 
 void loop() {
-  // Connect or reconnect to WiFi
-  if(WiFi.status() != WL_CONNECTED){
-    Serial.print("Attempting to connect to SSID: ");
-    Serial.println(ssid);
-    while(WiFi.status() != WL_CONNECTED){
-      WiFi.begin(ssid, pass);
-      Serial.print(".");
-      delay(5000);     
-    } 
-    Serial.println("\nConnected.");
-  }
-
-  byte ch;
-  String data;
+  wifiTimer.run();
   
-  if (radioSerial.available() > 0) {
-    DynamicJsonBuffer jsonBuffer(1024);
-    JsonObject& root = jsonBuffer.parseObject(radioSerial);
-    if(root.success()) {
-      ts = root["time"]; // 1541025665
-      temp = root["temp"]; // 23.23
-      pressure = root["pressure"]; // 1008.638
-      humidity = root["humidity"]; // 51.35352
-      light = root["light"]; // 6
-      watherTemp = root["watherTemp"]; // 23.00
-      rain = root["rain"]; // 25669   
-      groundHum = root["groundHum"]; // 25669
+  listenRadio();
+}
 
-      values[0] = temp;
-      values[1] = pressure;
-      values[2] = humidity;
-      values[3] = light;
-      values[4] = watherTemp;
+void listenRadio() {
+    byte ch;
+    String data;
 
-      Serial.print("Time: ");Serial.println(ts);
-      Serial.print("Temp: ");Serial.println(temp);
-      Serial.print("Pressure: ");Serial.println(pressure);
-      Serial.print("Humidity: ");Serial.println(humidity);
-      Serial.print("Light: ");Serial.println(light);
-      Serial.print("Wather temp: ");Serial.println(watherTemp);
-      Serial.print("Rain: ");Serial.println(rain);
-      Serial.print("Ground humidity: ");Serial.println(groundHum);
+    if (radioSerial.available() > 0) {
+      DynamicJsonBuffer jsonBuffer(1024);
+      JsonObject& root = jsonBuffer.parseObject(radioSerial);
+      
+      if(root.success()) {
+        long  ts = root["time"];               // 1541025665
+        float temp = root["temp"];             // 23.23
+        float pressure = root["pressure"];     // 1008.638
+        float humidity = root["humidity"];     // 51.35352
+        int   light = root["light"];           // 6
+        float watherTemp = root["watherTemp"]; // 23.00
+        int   rain = root["rain"];             // 25669   
+        int   groundHum = root["groundHum"];   // 25669
+
+        Serial.print("Time: ");Serial.println(ts);
+        Serial.print("Temp: ");Serial.println(temp);
+        Serial.print("Pressure: ");Serial.println(pressure);
+        Serial.print("Humidity: ");Serial.println(humidity);
+        Serial.print("Light: ");Serial.println(light);
+        Serial.print("Wather temp: ");Serial.println(watherTemp);
+        Serial.print("Rain: ");Serial.println(rain);
+        Serial.print("Ground humidity: ");Serial.println(groundHum);
+
+        tft.setFreeFont(FSB9);
+        tft.fillRect(0, 0, 159, 65, TFT_BLACK);
+        tft.drawString("Temperature", 25, 0, GFXFF);
+        tft.setFreeFont(FSB18);
+        tft.drawString(String(temp) + "C", 35, 25, GFXFF);
+
+        tft.setFreeFont(FSB9);
+        tft.fillRect(161, 0, 159, 65, TFT_BLACK);
+        tft.drawString("Humidity", 195, 0, GFXFF);
+        tft.setFreeFont(FSB18);
+        tft.drawString(String(humidity) + "%", 185, 25, GFXFF);
+        
+        tft.setFreeFont(FSB9);
+        tft.fillRect(0, 67, 159, 65, TFT_BLACK);
+        tft.drawString("Pressure", 35, 67, GFXFF);
+        tft.setFreeFont(FSB12);
+        tft.drawString(String(pressure) + " hPa", 15, 92, GFXFF);
+
+        tft.setFreeFont(FSB9);
+        tft.fillRect(161, 67, 159, 65, TFT_BLACK);
+        tft.drawString("Light", 215, 67, GFXFF);
+        tft.setFreeFont(FSB12);
+        tft.drawString(String(light) + " lux", 195, 92, GFXFF);
 
 
-      if (millis() - thingSpeakInterval > 10000) {
-        thingSpeakInterval = millis();
+        if (millis() - thingSpeakInterval > 900000) {
+          thingSpeakInterval = millis();
 
-        ThingSpeak.setField(1, ts);
-        ThingSpeak.setField(2, temp);
-        ThingSpeak.setField(3, pressure);
-        ThingSpeak.setField(4, humidity);
-        ThingSpeak.setField(5, light);
-        ThingSpeak.setField(6, watherTemp);
-        ThingSpeak.setField(7, rain);
-        ThingSpeak.setField(8, groundHum);
+          ThingSpeak.setField(1, ts);
+          ThingSpeak.setField(2, temp);
+          ThingSpeak.setField(3, pressure);
+          ThingSpeak.setField(4, humidity);
+          ThingSpeak.setField(5, light);
+          ThingSpeak.setField(6, watherTemp);
+          ThingSpeak.setField(7, rain);
+          ThingSpeak.setField(8, groundHum);
 
           // write to the ThingSpeak channel
-        int x = ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
-        if(x == 200){
-          Serial.println("Channel update successful.");
-        }
-        else{
-          Serial.println("Problem updating channel. HTTP error code " + String(x));
+          int x = ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
+          if(x == 200){
+            Serial.println("Channel update successful.");
+          }
+          else{
+            Serial.println("Problem updating channel. HTTP error code " + String(x));
+          }
         }
       }
+      yield();
     }
-    yield();
-  }
+}
 
-  if (millis() - interval > 10000) {
-    interval = millis();
-    pageIndex = (pageIndex + 1)  % pagesLength;
-  }
+void initWiFi() {
+  WiFi.mode(WIFI_STA);
 
-  if (millis() - refreshInterval > 1000) {
-    refreshInterval= millis();
+  Serial.println("");
+  Serial.println("Connecting to WIFI");
+  WiFi.begin(ssid, pass);
 
-    display.clear();
-    display.setFont(ArialMT_Plain_24);
-    display.setTextAlignment(TEXT_ALIGN_CENTER);
-    display.drawString(64, 0, pagesNames[pageIndex]);
-    display.setTextAlignment(TEXT_ALIGN_CENTER);
-    display.drawString(64, 32, String(values[pageIndex],1) + pagesPostfix[pageIndex]);
-    display.display();
+  wifiTimer.setInterval(500, checkWiFiConnect);
+
+  ThingSpeak.begin(client);
+}
+
+void checkWiFiConnect() {
+  if (WiFi.status() != WL_CONNECTED) {
+    //tft.fillScreen(TFT_BLACK);
+    //tft.setCursor(0, 0, 2);
+    //tft.println("WiFi: Disconnected");
+    
+    WiFi.reconnect();
+  } else {
+    //tft.fillScreen(TFT_BLACK);
+    //tft.setCursor(0, 0, 2);
+    //tft.println("WiFi: Connected   ");
   }
+}
+
+void initTft() {
+  tft.begin();
+  tft.setTouch(touchCalibration);
+  tft.setRotation(1);
+  tft.fillScreen(TFT_WHITE);
 }
