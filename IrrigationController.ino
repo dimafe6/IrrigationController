@@ -3,7 +3,6 @@
 #include <ArduinoJson.h>
 #include "ThingSpeak.h"
 #include <WiFi.h>
-#include "SPI.h"
 #include "TFT_eSPI.h"
 #include <SimpleTimer.h>
 #include "Free_Fonts.h"
@@ -12,7 +11,7 @@
 
 uint16_t touchCalibration[5] = {214, 3478, 258, 3520, 5};
 
-HardwareSerial radioSerial(1);
+HardwareSerial HC12(1);
 HardwareSerial SIM800(2);
 TFT_eSPI tft = TFT_eSPI();
 WiFiClient client;
@@ -20,17 +19,17 @@ RtcDS3231<TwoWire> Rtc(Wire);
 
 struct WeatherData
 {
-  long ts;
-  float temp;
-  float pressure;
-  float humidity;
-  int light;
-  float watherTemp;
-  int rain;
-  int groundHum;
+  int temp = NULL;
+  int pressure = NULL;
+  int humidity = NULL;
+  int light = NULL;
+  int waterTemp = NULL;
+  int rain = NULL;
+  int groundHum = NULL;
 } weatherData;
 
 long thingSpeakLastUpdate;
+long HC12LastUpdate;
 int currentBalance = NULL;
 
 void setup()
@@ -47,15 +46,15 @@ void setup()
 void loop()
 {
   listenSIM800();
-  //listenRadio();
+  listenRadio();
 }
 
 void initSerial()
 {
   Serial.begin(BAUD_RATE);
-  radioSerial.begin(BAUD_RATE, SERIAL_8N1, HC_12_RX, HC_12_TX);
+  HC12.begin(BAUD_RATE, SERIAL_8N1, HC_12_RX, HC_12_TX);
   SIM800.begin(BAUD_RATE);
-  sendATCommand("AT+CUSD=1,\"*111#\"");
+  //sendATCommand("AT+CUSD=1,\"*111#\"");
 }
 
 void initRtc()
@@ -63,8 +62,8 @@ void initRtc()
   Rtc.Begin();
   Rtc.Enable32kHzPin(false);
   Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeAlarmBoth);
-  RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__); //TODO: remove   
-  
+  RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
+
   if (!Rtc.IsDateTimeValid())
   {
     Serial.println("RTC lost confidence in the DateTime!");
@@ -85,73 +84,108 @@ void initRtc()
   }
 }
 
+void updateWeatherData(int temp, int pressure, int humidity, int light, int waterTemp, int rain, int groundHum)
+{
+  if (NULL != temp && temp < 100)
+  {
+    weatherData.temp = temp;
+  }
+  if (NULL != pressure && pressure > 300 && pressure < 1100)
+  {
+    weatherData.pressure = pressure;
+  }
+  if (NULL != humidity && humidity < 101)
+  {
+    weatherData.humidity = humidity;
+  }
+  if (NULL != light && light < 50000)
+  {
+    weatherData.light = light;
+  }
+  if (NULL != waterTemp && waterTemp > 0 && waterTemp < 50)
+  {
+    weatherData.waterTemp = waterTemp;
+  }
+  if (NULL != rain && rain < 25000)
+  {
+    weatherData.rain = rain;
+  }
+  if (NULL != groundHum && groundHum < 25000)
+  {
+    weatherData.groundHum = groundHum;
+  }
+}
+
 void listenRadio()
 {
   byte ch;
   String data;
 
-  if (radioSerial.available())
+  if (HC12.available())
   {
-    DynamicJsonBuffer jsonBuffer(1024);
-    JsonObject &root = jsonBuffer.parseObject(radioSerial);
-
-    if (root.success())
+    if (millis() - HC12LastUpdate >= HC_12_UPDATE_INTERVAL)
     {
-      weatherData.ts = root["time"];               // 1541025665
-      weatherData.temp = root["temp"];             // 23.23
-      weatherData.pressure = root["pressure"];     // 1008.638
-      weatherData.humidity = root["humidity"];     // 51.35352
-      weatherData.light = root["light"];           // 6
-      weatherData.watherTemp = root["watherTemp"]; // 23.00
-      weatherData.rain = root["rain"];             // 25669
-      weatherData.groundHum = root["groundHum"];   // 25669
+      DynamicJsonBuffer jsonBuffer(1024);
+      JsonObject &root = jsonBuffer.parseObject(HC12);
 
-      /*Serial.print("Time: ");
-      Serial.println(weatherData.ts);
-      Serial.print("Temp: ");
-      Serial.println(weatherData.temp);
-      Serial.print("Pressure: ");
-      Serial.println(weatherData.pressure);
-      Serial.print("Humidity: ");
-      Serial.println(weatherData.humidity);
-      Serial.print("Light: ");
-      Serial.println(weatherData.light);
-      Serial.print("Wather temp: ");
-      Serial.println(weatherData.watherTemp);
-      Serial.print("Rain: ");
-      Serial.println(weatherData.rain);
-      Serial.print("Ground humidity: ");
-      Serial.println(weatherData.groundHum);*/
-
-      tft.setFreeFont(FSB9);
-      tft.fillRect(0, 0, 159, 65, TFT_BLACK);
-      tft.drawString("Temperature", 25, 0, GFXFF);
-      tft.setFreeFont(FSB18);
-      tft.drawString(String(weatherData.temp) + "C", 35, 25, GFXFF);
-
-      tft.setFreeFont(FSB9);
-      tft.fillRect(161, 0, 159, 65, TFT_BLACK);
-      tft.drawString("Humidity", 195, 0, GFXFF);
-      tft.setFreeFont(FSB18);
-      tft.drawString(String(weatherData.humidity) + "%", 185, 25, GFXFF);
-
-      tft.setFreeFont(FSB9);
-      tft.fillRect(0, 67, 159, 65, TFT_BLACK);
-      tft.drawString("Pressure", 35, 67, GFXFF);
-      tft.setFreeFont(FSB12);
-      tft.drawString(String(weatherData.pressure) + " hPa", 15, 92, GFXFF);
-
-      tft.setFreeFont(FSB9);
-      tft.fillRect(161, 67, 159, 65, TFT_BLACK);
-      tft.drawString("Light", 215, 67, GFXFF);
-      tft.setFreeFont(FSB12);
-      tft.drawString(String(weatherData.light) + " lux", 195, 92, GFXFF);
-
-      if (millis() - thingSpeakLastUpdate > THING_SPEAK_WRITE_INTERVAL)
+      if (root.success())
       {
-        thingSpeakLastUpdate = millis();
+        int temp = root["t"];
+        int pressure = root["p"];
+        int humidity = root["h"];
+        int light = root["l"];
+        int waterTemp = root["wt"];
+        int rain = root["r"];
+        int groundHum = root["gh"];
 
-        sendWeatherDataToThingSpeak();
+        updateWeatherData(temp, pressure, humidity, light, waterTemp, rain, groundHum);
+        HC12LastUpdate = millis();
+
+        Serial.print("Temp: ");
+        Serial.println(weatherData.temp);
+        Serial.print("Pressure: ");
+        Serial.println(weatherData.pressure);
+        Serial.print("Humidity: ");
+        Serial.println(weatherData.humidity);
+        Serial.print("Light: ");
+        Serial.println(weatherData.light);
+        Serial.print("Wather temp: ");
+        Serial.println(weatherData.waterTemp);
+        Serial.print("Rain: ");
+        Serial.println(weatherData.rain);
+        Serial.print("Ground humidity: ");
+        Serial.println(weatherData.groundHum);
+
+        tft.setFreeFont(FSB9);
+        tft.fillRect(0, 0, 159, 65, TFT_BLACK);
+        tft.drawString("Temperature", 25, 0, GFXFF);
+        tft.setFreeFont(FSB18);
+        tft.drawString(String(weatherData.temp) + "C", 35, 25, GFXFF);
+
+        tft.setFreeFont(FSB9);
+        tft.fillRect(161, 0, 159, 65, TFT_BLACK);
+        tft.drawString("Humidity", 195, 0, GFXFF);
+        tft.setFreeFont(FSB18);
+        tft.drawString(String(weatherData.humidity) + "%", 185, 25, GFXFF);
+
+        tft.setFreeFont(FSB9);
+        tft.fillRect(0, 67, 159, 65, TFT_BLACK);
+        tft.drawString("Pressure", 35, 67, GFXFF);
+        tft.setFreeFont(FSB12);
+        tft.drawString(String(weatherData.pressure) + " hPa", 15, 92, GFXFF);
+
+        tft.setFreeFont(FSB9);
+        tft.fillRect(161, 67, 159, 65, TFT_BLACK);
+        tft.drawString("Light", 215, 67, GFXFF);
+        tft.setFreeFont(FSB12);
+        tft.drawString(String(weatherData.light) + " lux", 195, 92, GFXFF);
+
+        if (millis() - thingSpeakLastUpdate > THING_SPEAK_WRITE_INTERVAL)
+        {
+          thingSpeakLastUpdate = millis();
+
+          sendWeatherDataToThingSpeak(); //TODO: Run in second core
+        }
       }
     }
   }
@@ -161,12 +195,11 @@ void sendWeatherDataToThingSpeak()
 {
   if (WiFi.status() == WL_CONNECTED)
   {
-    ThingSpeak.setField(1, weatherData.ts);
     ThingSpeak.setField(2, weatherData.temp);
     ThingSpeak.setField(3, weatherData.pressure);
     ThingSpeak.setField(4, weatherData.humidity);
     ThingSpeak.setField(5, weatherData.light);
-    ThingSpeak.setField(6, weatherData.watherTemp);
+    ThingSpeak.setField(6, weatherData.waterTemp);
     ThingSpeak.setField(7, weatherData.rain);
     ThingSpeak.setField(8, weatherData.groundHum);
 
