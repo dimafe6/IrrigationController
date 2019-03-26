@@ -2,6 +2,7 @@
 #define BAUD_RATE 9600
 #define HC_12_RX 26
 #define HC_12_TX 27
+#define HC_12_UPDATE_INTERVAL 2000
 
 /* LCD configuration */
 #define TFT_MISO 19 // 21 on LCD
@@ -23,3 +24,12 @@
 
 /* RTC pins */
 #define RTC_SQW_PIN 34
+
+/* Calendar configuration */
+#define CALENDAR_OCCURRENCES_LIST_SIZE 24
+#define CALENDAR_MAX_NUM_EVENTS 24
+#define CALENDAR_CHECK_INTERVAL 500
+#define CALENDAR_ZONE_1 1
+#define CALENDAR_ZONE_2 2
+#define CALENDAR_ZONE_3 3
+#define CALENDAR_ZONE_4 4

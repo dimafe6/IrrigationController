@@ -3,19 +3,19 @@
 #include <ArduinoJson.h>
 #include "ThingSpeak.h"
 #include <WiFi.h>
-#include "TFT_eSPI.h"
-#include <SimpleTimer.h>
-#include "Free_Fonts.h"
 #include <Wire.h>
 #include <RtcDS3231.h>
+#include <Time.h>
+#include <Chronos.h>
 
 uint16_t touchCalibration[5] = {214, 3478, 258, 3520, 5};
 
 HardwareSerial HC12(1);
 HardwareSerial SIM800(2);
-TFT_eSPI tft = TFT_eSPI();
 WiFiClient client;
-RtcDS3231<TwoWire> Rtc(Wire);
+RtcDS3231<TwoWire> RTC(Wire);
+DefineCalendarType(Calendar, CALENDAR_MAX_NUM_EVENTS);
+Calendar MyCalendar;
 
 struct WeatherData
 {
@@ -30,6 +30,8 @@ struct WeatherData
 
 long thingSpeakLastUpdate;
 long HC12LastUpdate;
+long calendarLastCheck;
+
 int currentBalance = NULL;
 
 void setup()
@@ -38,13 +40,12 @@ void setup()
 
   initRtc();
 
-  initTft();
-
   initWiFi();
 }
 
 void loop()
 {
+  checkCalendar();
   listenSIM800();
   listenRadio();
 }
@@ -59,28 +60,60 @@ void initSerial()
 
 void initRtc()
 {
-  Rtc.Begin();
-  Rtc.Enable32kHzPin(false);
-  Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeAlarmBoth);
+  RTC.Begin();
+  RTC.Enable32kHzPin(false);
+  RTC.SetSquareWavePin(DS3231SquareWavePin_ModeAlarmBoth);
   RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
 
-  if (!Rtc.IsDateTimeValid())
+  if (!RTC.IsDateTimeValid())
   {
     Serial.println("RTC lost confidence in the DateTime!");
-    Rtc.SetDateTime(compiled);
+    RTC.SetDateTime(compiled);
   }
 
-  if (!Rtc.GetIsRunning())
+  if (!RTC.GetIsRunning())
   {
     Serial.println("RTC was not actively running, starting now");
-    Rtc.SetIsRunning(true);
+    RTC.SetIsRunning(true);
   }
 
-  RtcDateTime now = Rtc.GetDateTime();
+  RtcDateTime now = RTC.GetDateTime();
   if (now < compiled)
   {
     Serial.println("RTC is older than compile time!  (Updating DateTime)");
-    Rtc.SetDateTime(compiled);
+    RTC.SetDateTime(compiled);
+  }
+
+  setSyncProvider(getTime);
+  Chronos::DateTime::now().printTo(Serial);
+
+  MyCalendar.add(Chronos::Event(CALENDAR_ZONE_1, Chronos::Mark::Daily(19, 32, 00), Chronos::Span::Minutes(2)));
+  MyCalendar.add(Chronos::Event(CALENDAR_ZONE_1, Chronos::Mark::Daily(19, 33, 00), Chronos::Span::Minutes(2)));
+}
+
+static time_t getTime()
+{
+  return RTC.GetDateTime().Epoch32Time();
+}
+
+void checkCalendar()
+{
+  if (millis() - calendarLastCheck >= CALENDAR_CHECK_INTERVAL)
+  {
+    calendarLastCheck = millis();
+
+    Chronos::Event::Occurrence occurrenceList[CALENDAR_OCCURRENCES_LIST_SIZE];
+    int numOngoing = MyCalendar.listOngoing(CALENDAR_OCCURRENCES_LIST_SIZE, occurrenceList, Chronos::DateTime::now());
+    if (numOngoing)
+    {
+      Serial.println("**** Event: ");
+      Serial.println((int)occurrenceList[0].id);
+      Serial.println("test");
+      Serial.println("ends in: ");
+      (Chronos::DateTime::now() - occurrenceList[0].finish).printTo(Serial);
+      Serial.println("");
+      Serial.println("");
+    }
   }
 }
 
@@ -156,30 +189,6 @@ void listenRadio()
         Serial.print("Ground humidity: ");
         Serial.println(weatherData.groundHum);
 
-        tft.setFreeFont(FSB9);
-        tft.fillRect(0, 0, 159, 65, TFT_BLACK);
-        tft.drawString("Temperature", 25, 0, GFXFF);
-        tft.setFreeFont(FSB18);
-        tft.drawString(String(weatherData.temp) + "C", 35, 25, GFXFF);
-
-        tft.setFreeFont(FSB9);
-        tft.fillRect(161, 0, 159, 65, TFT_BLACK);
-        tft.drawString("Humidity", 195, 0, GFXFF);
-        tft.setFreeFont(FSB18);
-        tft.drawString(String(weatherData.humidity) + "%", 185, 25, GFXFF);
-
-        tft.setFreeFont(FSB9);
-        tft.fillRect(0, 67, 159, 65, TFT_BLACK);
-        tft.drawString("Pressure", 35, 67, GFXFF);
-        tft.setFreeFont(FSB12);
-        tft.drawString(String(weatherData.pressure) + " hPa", 15, 92, GFXFF);
-
-        tft.setFreeFont(FSB9);
-        tft.fillRect(161, 67, 159, 65, TFT_BLACK);
-        tft.drawString("Light", 215, 67, GFXFF);
-        tft.setFreeFont(FSB12);
-        tft.drawString(String(weatherData.light) + " lux", 195, 92, GFXFF);
-
         if (millis() - thingSpeakLastUpdate > THING_SPEAK_WRITE_INTERVAL)
         {
           thingSpeakLastUpdate = millis();
@@ -231,14 +240,6 @@ void initWiFi()
   {
     WiFi.begin();
   }
-}
-
-void initTft()
-{
-  tft.begin();
-  tft.setTouch(touchCalibration);
-  tft.setRotation(3);
-  tft.fillScreen(TFT_WHITE);
 }
 
 void WiFiEvent(WiFiEvent_t event)
