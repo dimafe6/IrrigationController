@@ -6,7 +6,7 @@
 #include <Wire.h>
 #include <RtcDS3231.h>
 #include <Time.h>
-#include <Chronos.h>
+#include "src/Chronos/src/Chronos.h"
 
 uint16_t touchCalibration[5] = {214, 3478, 258, 3520, 5};
 

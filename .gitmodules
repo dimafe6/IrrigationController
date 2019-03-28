@@ -1,0 +1,3 @@
+[submodule "src/Chronos"]
+	path = src/Chronos
+	url = git@github.com:dimafe6/Chronos.git
