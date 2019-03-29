@@ -87,31 +87,56 @@ void initRtc()
   setSyncProvider(getTime);
   Chronos::DateTime::now().printTo(Serial);
 
-  MyCalendar.add(Chronos::Event(CALENDAR_ZONE_1, Chronos::Mark::Daily(19, 32, 00), Chronos::Span::Minutes(2)));
-  MyCalendar.add(Chronos::Event(CALENDAR_ZONE_1, Chronos::Mark::Daily(19, 33, 00), Chronos::Span::Minutes(2)));
+  Serial.println("");
+  Serial.print("Free heap: ");
+  Serial.print(ESP.getFreeHeap());
+  Serial.println("");
+
+  MyCalendar.add(Chronos::Event(CALENDAR_ZONE_1, Chronos::Mark::EveryXDays(2, 15, 0), Chronos::Span::Seconds(10)));
+  MyCalendar.add(Chronos::Event(CALENDAR_ZONE_1, Chronos::Mark::EveryXHours(5,30, 0), Chronos::Span::Seconds(10)));
+  MyCalendar.add(Chronos::Event(CALENDAR_ZONE_1, Chronos::Mark::Weekly(Chronos::Weekday::Friday, 2, 0), Chronos::Span::Seconds(10)));
+
+  Serial.println("");
+  Serial.print("Free heap: ");
+  Serial.print(ESP.getFreeHeap());
+  Serial.println("");
 }
 
 static time_t getTime()
 {
   return RTC.GetDateTime().Epoch32Time();
 }
-
+int flag = false;
 void checkCalendar()
 {
   if (millis() - calendarLastCheck >= CALENDAR_CHECK_INTERVAL)
   {
     calendarLastCheck = millis();
 
+    Chronos::Event::Occurrence occurrenceList1[10];
+    int numMon = MyCalendar.listNext(10, occurrenceList1, Chronos::DateTime::now());
+    if (numMon)
+    {
+      Serial.println("");
+      Serial.print("Next event: ");
+      for (int i = 0; i < numMon; i++)
+      {
+        Serial.print((int)occurrenceList1[i].id);
+        Serial.print(": ");
+        occurrenceList1[i].finish.printTo(Serial);
+        Serial.println("");
+      }
+    }
+
     Chronos::Event::Occurrence occurrenceList[CALENDAR_OCCURRENCES_LIST_SIZE];
     int numOngoing = MyCalendar.listOngoing(CALENDAR_OCCURRENCES_LIST_SIZE, occurrenceList, Chronos::DateTime::now());
     if (numOngoing)
     {
-      Serial.println("**** Event: ");
-      Serial.println((int)occurrenceList[0].id);
-      Serial.println("test");
-      Serial.println("ends in: ");
-      (Chronos::DateTime::now() - occurrenceList[0].finish).printTo(Serial);
       Serial.println("");
+      Serial.print("**** Event: ");
+      Serial.print((int)occurrenceList[0].id);
+      Serial.print(": ");
+      (Chronos::DateTime::now() - occurrenceList[0].finish).printTo(Serial);
       Serial.println("");
     }
   }
