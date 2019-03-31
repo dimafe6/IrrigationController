@@ -3,6 +3,10 @@
 #include <ArduinoJson.h>
 #include "ThingSpeak.h"
 #include <WiFi.h>
+#include <SPIFFS.h>
+#include <FS.h>
+#include <ESPAsyncWebServer.h>
+#include <SPIFFSEditor.h>
 #include <Wire.h>
 #include <RtcDS3231.h>
 #include <Time.h>
@@ -10,12 +14,18 @@
 
 uint16_t touchCalibration[5] = {214, 3478, 258, 3520, 5};
 
+AsyncWebServer server(HTTP_PORT);
+AsyncWebSocket ws("/ws");
+AsyncEventSource events("/events");
 HardwareSerial HC12(1);
 HardwareSerial SIM800(2);
 WiFiClient client;
 RtcDS3231<TwoWire> RTC(Wire);
 DefineCalendarType(Calendar, CALENDAR_MAX_NUM_EVENTS);
 Calendar MyCalendar;
+
+const char *ssid = SECRET_SSID;
+const char *password = SECRET_PASS;
 
 struct WeatherData
 {
@@ -37,10 +47,9 @@ int currentBalance = NULL;
 void setup()
 {
   initSerial();
-
   initRtc();
-
   initWiFi();
+  initWebServer();
 }
 
 void loop()
@@ -48,6 +57,97 @@ void loop()
   checkCalendar();
   listenSIM800();
   listenRadio();
+}
+
+void initWebServer()
+{
+  SPIFFS.begin();
+  ws.onEvent(onWsEvent);
+  server.addHandler(&ws);
+  server.addHandler(&events);
+  server.addHandler(new SPIFFSEditor(SPIFFS, SPIFFS_EDITOR_LOGIN, SPIFFS_EDITOR_PASS));
+  server.rewrite("/wifi", "/wifi.html");
+  server.serveStatic("/", SPIFFS, "/").setDefaultFile("index.html");
+  server.onNotFound([](AsyncWebServerRequest *request) {
+    request->send(404);
+  });
+  server.begin();
+}
+
+void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len)
+{
+  if (type == WS_EVT_DATA)
+  {
+    AwsFrameInfo *info = (AwsFrameInfo *)arg;
+    String msg = "";
+    if (info->opcode == WS_TEXT)
+    {
+      for (size_t i = 0; i < info->len; i++)
+      {
+        msg += (char)data[i];
+      }
+    }
+    else
+    {
+      char buff[3];
+      for (size_t i = 0; i < info->len; i++)
+      {
+        sprintf(buff, "%02x ", (uint8_t)data[i]);
+        msg += buff;
+      }
+    }
+
+    DynamicJsonBuffer jsonBuffer(1024);
+    JsonObject &root = jsonBuffer.parseObject(msg);
+
+    if (root.success())
+    {
+      String command = root["command"];
+      if (command == "WiFiConfig")
+      {
+        String answerString;
+        root.printTo(Serial);
+        ssid = root["data"]["ssid"];
+        password = root["data"]["pass"];
+        root.printTo(answerString);
+
+        WiFi.begin(ssid, password);
+        WiFi.reconnect();
+      }
+      else if (command == "manualIrrigation")
+      {
+        int duration = root["data"]["duration"];
+        bool zone1 = root["data"]["zone1"];
+        bool zone2 = root["data"]["zone2"];
+        bool zone3 = root["data"]["zone3"];
+        bool zone4 = root["data"]["zone4"];
+
+        if (zone1)
+        {
+          MyCalendar.add(Chronos::Event(CALENDAR_ZONE_1, Chronos::DateTime::now(), Chronos::Span::Minutes(duration)));
+        }
+        if (zone2)
+        {
+          MyCalendar.add(Chronos::Event(CALENDAR_ZONE_2, Chronos::DateTime::now(), Chronos::Span::Minutes(duration)));
+        }
+        if (zone3)
+        {
+          MyCalendar.add(Chronos::Event(CALENDAR_ZONE_3, Chronos::DateTime::now(), Chronos::Span::Minutes(duration)));
+        }
+        if (zone4)
+        {
+          MyCalendar.add(Chronos::Event(CALENDAR_ZONE_4, Chronos::DateTime::now(), Chronos::Span::Minutes(duration)));
+        }
+      }
+      else if (command == "stopManualIrrigation")
+      {
+        MyCalendar.remove(CALENDAR_ZONE_1);
+        MyCalendar.remove(CALENDAR_ZONE_2);
+        MyCalendar.remove(CALENDAR_ZONE_3);
+        MyCalendar.remove(CALENDAR_ZONE_4);
+      }
+    }
+  }
 }
 
 void initSerial()
@@ -92,9 +192,9 @@ void initRtc()
   Serial.print(ESP.getFreeHeap());
   Serial.println("");
 
-  MyCalendar.add(Chronos::Event(CALENDAR_ZONE_1, Chronos::Mark::EveryXDays(2, 15, 0), Chronos::Span::Seconds(10)));
-  MyCalendar.add(Chronos::Event(CALENDAR_ZONE_1, Chronos::Mark::EveryXHours(5,30, 0), Chronos::Span::Seconds(10)));
-  MyCalendar.add(Chronos::Event(CALENDAR_ZONE_1, Chronos::Mark::Weekly(Chronos::Weekday::Friday, 2, 0), Chronos::Span::Seconds(10)));
+  //MyCalendar.add(Chronos::Event(CALENDAR_ZONE_1, Chronos::Mark::EveryXDays(2, 15, 0), Chronos::Span::Seconds(10)));
+  //MyCalendar.add(Chronos::Event(CALENDAR_ZONE_1, Chronos::Mark::EveryXHours(5, 30, 0), Chronos::Span::Seconds(10)));
+  //MyCalendar.add(Chronos::Event(CALENDAR_ZONE_1, Chronos::Mark::Weekly(Chronos::Weekday::Friday, 2, 0), Chronos::Span::Seconds(10)));
 
   Serial.println("");
   Serial.print("Free heap: ");
@@ -106,7 +206,7 @@ static time_t getTime()
 {
   return RTC.GetDateTime().Epoch32Time();
 }
-int flag = false;
+
 void checkCalendar()
 {
   if (millis() - calendarLastCheck >= CALENDAR_CHECK_INTERVAL)
@@ -132,12 +232,15 @@ void checkCalendar()
     int numOngoing = MyCalendar.listOngoing(CALENDAR_OCCURRENCES_LIST_SIZE, occurrenceList, Chronos::DateTime::now());
     if (numOngoing)
     {
-      Serial.println("");
-      Serial.print("**** Event: ");
-      Serial.print((int)occurrenceList[0].id);
-      Serial.print(": ");
-      (Chronos::DateTime::now() - occurrenceList[0].finish).printTo(Serial);
-      Serial.println("");
+      for (int i = 0; i < numOngoing; i++)
+      {
+        Serial.println("");
+        Serial.print("**** Event: ");
+        Serial.print((int)occurrenceList[i].id);
+        Serial.print(": ");
+        (Chronos::DateTime::now() - occurrenceList[i].finish).printTo(Serial);
+        Serial.println("");
+      }
     }
   }
 }
@@ -172,6 +275,22 @@ void updateWeatherData(int temp, int pressure, int humidity, int light, int wate
   {
     weatherData.groundHum = groundHum;
   }
+
+  String answerString;
+  DynamicJsonBuffer jsonBuffer(1024);
+  JsonObject &answer = jsonBuffer.createObject();
+  answer["command"] = "weatherUpdate";
+  JsonObject &data = answer.createNestedObject("data");
+  data["temp"] = weatherData.temp;
+  data["pressure"] = weatherData.pressure;
+  data["humidity"] = weatherData.humidity;
+  data["light"] = weatherData.light;
+  data["waterTemp"] = weatherData.waterTemp;
+  data["rain"] = weatherData.rain;
+  data["groundHum"] = weatherData.groundHum;
+  answer.printTo(answerString);
+
+  ws.textAll(answerString.c_str());
 }
 
 void listenRadio()
@@ -198,7 +317,7 @@ void listenRadio()
 
         updateWeatherData(temp, pressure, humidity, light, waterTemp, rain, groundHum);
         HC12LastUpdate = millis();
-
+        /*
         Serial.print("Temp: ");
         Serial.println(weatherData.temp);
         Serial.print("Pressure: ");
@@ -213,7 +332,7 @@ void listenRadio()
         Serial.println(weatherData.rain);
         Serial.print("Ground humidity: ");
         Serial.println(weatherData.groundHum);
-
+*/
         if (millis() - thingSpeakLastUpdate > THING_SPEAK_WRITE_INTERVAL)
         {
           thingSpeakLastUpdate = millis();
@@ -253,13 +372,13 @@ void sendWeatherDataToThingSpeak()
 void initWiFi()
 {
   WiFi.onEvent(WiFiEvent);
-  WiFi.mode(WIFI_STA);
+  WiFi.softAP("IrrigationController", SECRET_WEBSERVER_PASS);
 
   Serial.println("");
   Serial.println("Connecting to WIFI");
   if (WiFi.SSID() == "")
   {
-    WiFi.begin(SECRET_SSID, SECRET_PASS);
+    WiFi.begin(ssid, password);
   }
   else
   {
