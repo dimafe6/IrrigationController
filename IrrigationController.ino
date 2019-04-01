@@ -24,9 +24,6 @@ RtcDS3231<TwoWire> RTC(Wire);
 DefineCalendarType(Calendar, CALENDAR_MAX_NUM_EVENTS);
 Calendar MyCalendar;
 
-const char *ssid = SECRET_SSID;
-const char *password = SECRET_PASS;
-
 struct WeatherData
 {
   int temp = NULL;
@@ -61,7 +58,6 @@ void loop()
 
 void initWebServer()
 {
-  SPIFFS.begin();
   ws.onEvent(onWsEvent);
   server.addHandler(&ws);
   server.addHandler(&events);
@@ -107,8 +103,8 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       {
         String answerString;
         root.printTo(Serial);
-        ssid = root["data"]["ssid"];
-        password = root["data"]["pass"];
+        const char *ssid = root["data"]["ssid"];
+        const char *password = root["data"]["pass"];
         root.printTo(answerString);
 
         WiFi.begin(ssid, password);
@@ -117,34 +113,19 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       else if (command == "manualIrrigation")
       {
         int duration = root["data"]["duration"];
-        bool zone1 = root["data"]["zone1"];
-        bool zone2 = root["data"]["zone2"];
-        bool zone3 = root["data"]["zone3"];
-        bool zone4 = root["data"]["zone4"];
-
-        if (zone1)
+        JsonArray &zones = root["data"]["zones"];
+        for (int zone : zones)
         {
-          MyCalendar.add(Chronos::Event(CALENDAR_ZONE_1, Chronos::DateTime::now(), Chronos::Span::Minutes(duration)));
-        }
-        if (zone2)
-        {
-          MyCalendar.add(Chronos::Event(CALENDAR_ZONE_2, Chronos::DateTime::now(), Chronos::Span::Minutes(duration)));
-        }
-        if (zone3)
-        {
-          MyCalendar.add(Chronos::Event(CALENDAR_ZONE_3, Chronos::DateTime::now(), Chronos::Span::Minutes(duration)));
-        }
-        if (zone4)
-        {
-          MyCalendar.add(Chronos::Event(CALENDAR_ZONE_4, Chronos::DateTime::now(), Chronos::Span::Minutes(duration)));
+          MyCalendar.removeAll(zone);
+          MyCalendar.add(Chronos::Event(zone, Chronos::DateTime::now(), Chronos::Span::Minutes(duration)));
         }
       }
       else if (command == "stopManualIrrigation")
       {
-        MyCalendar.remove(CALENDAR_ZONE_1);
-        MyCalendar.remove(CALENDAR_ZONE_2);
-        MyCalendar.remove(CALENDAR_ZONE_3);
-        MyCalendar.remove(CALENDAR_ZONE_4);
+        for (byte zone = 1; zone < 5; zone++)
+        {
+          MyCalendar.removeAll(zone);
+        }
       }
     }
   }
@@ -156,6 +137,7 @@ void initSerial()
   HC12.begin(BAUD_RATE, SERIAL_8N1, HC_12_RX, HC_12_TX);
   SIM800.begin(BAUD_RATE);
   //sendATCommand("AT+CUSD=1,\"*111#\"");
+  SPIFFS.begin();
 }
 
 void initRtc()
@@ -371,19 +353,16 @@ void sendWeatherDataToThingSpeak()
 
 void initWiFi()
 {
+  WiFi.persistent(true);
+  WiFi.setAutoConnect(true);
+  WiFi.setAutoReconnect(true);
+
   WiFi.onEvent(WiFiEvent);
   WiFi.softAP("IrrigationController", SECRET_WEBSERVER_PASS);
 
   Serial.println("");
   Serial.println("Connecting to WIFI");
-  if (WiFi.SSID() == "")
-  {
-    WiFi.begin(ssid, password);
-  }
-  else
-  {
-    WiFi.begin();
-  }
+  WiFi.begin();
 }
 
 void WiFiEvent(WiFiEvent_t event)
@@ -416,6 +395,7 @@ void WiFiEvent(WiFiEvent_t event)
     break;
   case SYSTEM_EVENT_STA_GOT_IP:
     Serial.print("Obtained IP address: ");
+    Serial.println(WiFi.SSID());
     Serial.println(WiFi.localIP());
     ThingSpeak.begin(client);
     break;

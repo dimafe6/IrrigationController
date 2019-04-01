@@ -26,13 +26,10 @@
 #define RTC_SQW_PIN 34
 
 /* Calendar configuration */
-#define CALENDAR_OCCURRENCES_LIST_SIZE 24
-#define CALENDAR_MAX_NUM_EVENTS 24
+#define CALENDAR_OCCURRENCES_LIST_SIZE 25
+#define CALENDAR_MAX_NUM_EVENTS 25
 #define CALENDAR_CHECK_INTERVAL 1000
-#define CALENDAR_ZONE_1 1
-#define CALENDAR_ZONE_2 2
-#define CALENDAR_ZONE_3 3
-#define CALENDAR_ZONE_4 4
+#define ZONES_COUNT 4
 
 /* Web server configuration */
 #define HTTP_PORT 80

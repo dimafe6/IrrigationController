@@ -21,10 +21,16 @@
             var command = {};
             command.command = "manualIrrigation";
             command.data = {};
-            for (var i = 1; i < 5; i++) {
-                command.data['zone' + i] = $('#zone' + i).parent().hasClass("active");
-            }
+            var checked = []
+            $('input[name="zone[]"]').each(function ()
+            {
+              if($(this).parent().hasClass('active')){
+                checked.push(parseInt($(this).val()));
+                
+              }
+            });
             command.data.duration = parseInt($('#duration').val());
+            command.data.zones = checked;
 
             ws.send(JSON.stringify(command));
         }
