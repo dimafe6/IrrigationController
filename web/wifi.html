@@ -3,36 +3,33 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
     <title>Irrigation controller - WiFi settings</title>
     <script type="text/javascript" src="ws.js"></script>
     <script type="text/javascript">
-      function saveWifiConfig() {
-        ws.send('{"command":"WiFiConfig", "data": {"ssid":"'+document.getElementById("ssid").value+'", "pass": "'+document.getElementById("password").value+'"}}');
-      }
+        function saveWifiConfig() {
+            var command = {};
+            command.command = "WiFiConfig";
+            command.data = {};
+            command.data.ssid = document.getElementById("ssid").value;
+            command.data.pass = document.getElementById("pass").value;
+
+            ws.send(JSON.stringify(command));
+        }
     </script>
 </head>
 
 <body onLoad="javascript:WebSocketBegin()">
-<header id="main-header">
-    <div class="container">
-        <div class="row">
-            <div class="col-md-12 text-center">
-                <h1><i class="fas fa-cog"></i>WiFi settings</h1>
-                <div>
-                <label for="ssid">SSID</label>
-                <input type="string" id="ssid">
-                </div>
-                <div>
-                <label for="ssid">Password</label>
-                <input type="password" id="password">
-                </div>
-                <div>
-                <button onclick="saveWifiConfig()">Save</button>
-                </div>
-            </div>
-        </div>
-    </div>
-</header>
+<h1>WiFi settings</h1>
+<div>
+    <label for="ssid">SSID</label>
+    <input type="text" id="ssid">
+</div>
+<div>
+    <label for="pass">Password</label>
+    <input type="password" id="pass">
+</div>
+<div>
+    <button onclick="saveWifiConfig()">Save</button>
+</div>
 </body>
 </html>
