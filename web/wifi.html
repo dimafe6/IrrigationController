@@ -4,8 +4,19 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Irrigation controller - WiFi settings</title>
-    <script type="text/javascript" src="ws.js"></script>
     <script type="text/javascript">
+        function WebSocketBegin() {
+            if ("WebSocket" in window) {
+                ws = new WebSocket("ws://" + location.hostname + "/ws");
+                ws.onopen = function () {
+                    document.getElementById("save").removeAttribute('disabled');
+                    document.getElementById("ws-conn-fail").remove();
+                };
+            } else {
+                alert("WebSocket NOT supported by your Browser!");
+            }
+        }
+
         function saveWifiConfig() {
             var command = {};
             command.command = "WiFiConfig";
@@ -19,17 +30,20 @@
 </head>
 
 <body onLoad="javascript:WebSocketBegin()">
-<h1>WiFi settings</h1>
-<div>
-    <label for="ssid">SSID</label>
+<h1 style="text-align: center">WiFi settings</h1>
+<p id="ws-conn-fail" style="color: red; text-align: center">Connection to the WS server is not established! Please reload page and try again</p>
+<div style="margin: auto;  width: 200px;">
+    <div>
+    <div>SSID</div>
     <input type="text" id="ssid">
 </div>
 <div>
-    <label for="pass">Password</label>
+    <div>Password</div>
     <input type="password" id="pass">
 </div>
-<div>
-    <button onclick="saveWifiConfig()">Save</button>
+<div style="margin-top: 5px">
+    <button onclick="saveWifiConfig()" id="save" disabled>Save</button>
+</div>
 </div>
 </body>
 </html>

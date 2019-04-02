@@ -117,7 +117,14 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
         for (int zone : zones)
         {
           MyCalendar.removeAll(zone);
-          MyCalendar.add(Chronos::Event(zone, Chronos::DateTime::now(), Chronos::Span::Minutes(duration)));
+          if (MyCalendar.add(Chronos::Event(zone, Chronos::DateTime::now(), Chronos::Span::Minutes(duration))))
+          {
+            ws.textAll("{\"command\":\"manualIrrigation\",\"status\":true}");
+          }
+          else
+          {
+            ws.textAll("{\"command\":\"manualIrrigation\",\"status\":false}");
+          }
         }
       }
       else if (command == "stopManualIrrigation")

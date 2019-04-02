@@ -1,18 +1,47 @@
 var ws;
 
+$(document).ready(function () {
+    WebSocketBegin();
+});
+
 function WebSocketBegin() {
     if ("WebSocket" in window) {
         ws = new WebSocket("ws://" + location.hostname + "/ws");
         ws.onopen = function () {
             console.log("WS connected");
-            //ws.send('{"command" : "getHeap"}');
         };
 
         ws.onmessage = function (evt) {
             var jsonObject = JSON.parse(evt.data);
             console.log(jsonObject);
-            if (jsonObject.command) {
-
+            var command = jsonObject.command || null;
+            if (null !== command) {
+                var data = jsonObject.data || null;
+                var status = jsonObject.status || false;
+                switch (command) {
+                    case 'manualIrrigation':
+                        if (status) {
+                            $('#manual-mode .stop-irrigation-btn').show();
+                            $('#manual-mode .start-irrigation-btn').hide();
+                            alert('Irrigation started');
+                        } else {
+                            $('#manual-mode .stop-irrigation-btn').hide();
+                            $('#manual-mode .start-irrigation-btn').show();
+                            alert('Irrigation has not started. Try again');
+                        }
+                        break;
+                    case 'stopManualIrrigation':
+                        if (status) {
+                            $('#manual-mode .stop-irrigation-btn').hide();
+                            $('#manual-mode .start-irrigation-btn').show();
+                            alert('Irrigation stopped');
+                        } else {
+                            $('#manual-mode .stop-irrigation-btn').show();
+                            $('#manual-mode .start-irrigation-btn').hide();
+                            alert('Irrigation has not stopped. Try again');
+                        }
+                        break;
+                }
             }
         };
 
@@ -24,19 +53,29 @@ function WebSocketBegin() {
     }
 }
 
-function createZonesSelector($element) {
-    $($element).append('<div class="btn-group" data-toggle="buttons">\n' +
-        '<label class="btn btn-default active">\n' +
-        '    <input type="checkbox" id="zone1">Zone 1\n' +
-        '</label>\n' +
-        '<label class="btn btn-default">\n' +
-        '    <input type="checkbox" id="zone2">Zone 2\n' +
-        '</label>\n' +
-        '<label class="btn btn-default">\n' +
-        '    <input type="checkbox" id="zone3">Zone 3\n' +
-        '</label>\n' +
-        '<label class="btn btn-default">\n' +
-        '    <input type="checkbox" id="zone4">Zone 4\n' +
-        '</label>\n' +
-        '</div>');
+function manualIrrigation() {
+    if ($('#manual-mode-zones .btn-default.active').length === 0) {
+        alert("Select minimum one zone!");
+        $('#manual-mode-zones input[type="checkbox"]:eq(0)').click();
+        return;
+    }
+    var command = {};
+    command.command = "manualIrrigation";
+    command.data = {};
+    var checked = []
+    $('#manual-mode-zones input[type="checkbox"]').each(function () {
+        if ($(this).parent().hasClass('active')) {
+            checked.push(parseInt($(this).val()));
+        }
+    });
+    command.data.duration = parseInt($('#duration').val());
+    command.data.zones = checked;
+
+    ws.send(JSON.stringify(command));
+}
+
+function stopManualIrrigation() {
+    ws.send('{"command": "stopManualIrrigation"}');
+    $('#manual-mode .stop-irrigation-btn').hide();
+    $('#manual-mode .start-irrigation-btn').show();
 }
