@@ -3,7 +3,7 @@
 #include <ArduinoJson.h>
 #include "ThingSpeak.h"
 #include <WiFi.h>
-#include <SPIFFS.h>
+#include "SD.h"
 #include <FS.h>
 #include <ESPAsyncWebServer.h>
 #include <SPIFFSEditor.h>
@@ -14,6 +14,7 @@
 
 uint16_t touchCalibration[5] = {214, 3478, 258, 3520, 5};
 
+SPIClass spiSD(HSPI);
 AsyncWebServer server(HTTP_PORT);
 AsyncWebSocket ws("/ws");
 AsyncEventSource events("/events");
@@ -44,6 +45,7 @@ int currentBalance = NULL;
 void setup()
 {
   initSerial();
+  initSD();
   initRtc();
   initWiFi();
   initWebServer();
@@ -61,9 +63,24 @@ void initWebServer()
   ws.onEvent(onWsEvent);
   server.addHandler(&ws);
   server.addHandler(&events);
-  server.addHandler(new SPIFFSEditor(SPIFFS, SPIFFS_EDITOR_LOGIN, SPIFFS_EDITOR_PASS));
+  server.addHandler(new SPIFFSEditor(SD, SPIFFS_EDITOR_LOGIN, SPIFFS_EDITOR_PASS));
   server.rewrite("/wifi", "/wifi.html");
-  server.serveStatic("/", SPIFFS, "/").setDefaultFile("index.html");
+
+  server.serveStatic("/fa-solid-900.woff2", SD, "/fa-solid-900.woff2").setCacheControl("max-age=31536000");
+  server.serveStatic("/fa-solid-900.ttf", SD, "/fa-solid-900.ttf").setCacheControl("max-age=31536000");
+  server.serveStatic("/fa-solid-900.woff", SD, "/fa-solid-900.woff").setCacheControl("max-age=31536000");
+  server.serveStatic("/glyphicons-halflings-regular.eot", SD, "/glyphicons-halflings-regular.eot").setCacheControl("max-age=31536000");
+  server.serveStatic("/glyphicons-halflings-regular.svg", SD, "/glyphicons-halflings-regular.svg").setCacheControl("max-age=31536000");
+  server.serveStatic("/glyphicons-halflings-regular.ttf", SD, "/glyphicons-halflings-regular.ttf").setCacheControl("max-age=31536000");
+  server.serveStatic("/glyphicons-halflings-regular.woff", SD, "/glyphicons-halflings-regular.woff").setCacheControl("max-age=31536000");
+  server.serveStatic("/glyphicons-halflings-regular.woff2", SD, "/glyphicons-halflings-regular.woff2").setCacheControl("max-age=31536000");
+  server.serveStatic("/all.min.css", SD, "/all.min.css").setCacheControl("max-age=31536000");
+  server.serveStatic("/bootstrap.min.css", SD, "/bootstrap.min.css").setCacheControl("max-age=31536000");
+  server.serveStatic("/app.js", SD, "/app.js").setCacheControl("max-age=0");
+  server.serveStatic("/bootstrap.min.js", SD, "/bootstrap.min.js").setCacheControl("max-age=31536000");
+  server.serveStatic("/jquery.min.js", SD, "/jquery.min.js").setCacheControl("max-age=31536000");
+  server.serveStatic("/", SD, "/").setDefaultFile("index.html");
+
   server.onNotFound([](AsyncWebServerRequest *request) {
     request->send(404);
   });
@@ -74,6 +91,7 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
 {
   if (type == WS_EVT_DATA)
   {
+    //TODO: create ArduinoJson object from data
     AwsFrameInfo *info = (AwsFrameInfo *)arg;
     String msg = "";
     if (info->opcode == WS_TEXT)
@@ -119,6 +137,7 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
           MyCalendar.removeAll(zone);
           if (MyCalendar.add(Chronos::Event(zone, Chronos::DateTime::now(), Chronos::Span::Minutes(duration))))
           {
+            //TODO: repeat this message untill irrigation finished
             ws.textAll("{\"command\":\"manualIrrigation\",\"status\":true}");
           }
           else
@@ -131,11 +150,55 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       {
         for (byte zone = 1; zone < 5; zone++)
         {
-          MyCalendar.removeAll(zone);
+          MyCalendar.removeAll(zone);          
         }
+
+        ws.textAll("{\"command\":\"stopManualIrrigation\"}");
       }
     }
   }
+}
+
+void initSD()
+{
+  //spiSD.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+  //if (!SD.begin(SD_CS, spiSD))
+  if (!SD.begin())
+  {
+    Serial.println("Card Mount Failed");
+    return;
+  }
+
+  uint8_t cardType = SD.cardType();
+
+  if (cardType == CARD_NONE)
+  {
+    Serial.println("No SD card attached");
+    return;
+  }
+
+  Serial.print("SD Card Type: ");
+  if (cardType == CARD_MMC)
+  {
+    Serial.println("MMC");
+  }
+  else if (cardType == CARD_SD)
+  {
+    Serial.println("SDSC");
+  }
+  else if (cardType == CARD_SDHC)
+  {
+    Serial.println("SDHC");
+  }
+  else
+  {
+    Serial.println("UNKNOWN");
+  }
+
+  uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+  Serial.printf("SD Card Size: %lluMB\n", cardSize);
+  Serial.printf("Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
+  Serial.printf("Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
 }
 
 void initSerial()
@@ -144,7 +207,6 @@ void initSerial()
   HC12.begin(BAUD_RATE, SERIAL_8N1, HC_12_RX, HC_12_TX);
   SIM800.begin(BAUD_RATE);
   //sendATCommand("AT+CUSD=1,\"*111#\"");
-  SPIFFS.begin();
 }
 
 void initRtc()

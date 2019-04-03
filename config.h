@@ -33,3 +33,9 @@
 
 /* Web server configuration */
 #define HTTP_PORT 80
+
+/* SD card configuration */
+#define SD_SCK 14
+#define SD_MISO 33
+#define SD_MOSI 32
+#define SD_CS 13

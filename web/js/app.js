@@ -23,23 +23,17 @@ function WebSocketBegin() {
                         if (status) {
                             $('#manual-mode .stop-irrigation-btn').show();
                             $('#manual-mode .start-irrigation-btn').hide();
-                            alert('Irrigation started');
+                            console.log('Irrigation started');
                         } else {
                             $('#manual-mode .stop-irrigation-btn').hide();
                             $('#manual-mode .start-irrigation-btn').show();
-                            alert('Irrigation has not started. Try again');
+                            console.log('Irrigation has not started. Try again');
                         }
                         break;
                     case 'stopManualIrrigation':
-                        if (status) {
-                            $('#manual-mode .stop-irrigation-btn').hide();
-                            $('#manual-mode .start-irrigation-btn').show();
-                            alert('Irrigation stopped');
-                        } else {
-                            $('#manual-mode .stop-irrigation-btn').show();
-                            $('#manual-mode .start-irrigation-btn').hide();
-                            alert('Irrigation has not stopped. Try again');
-                        }
+                        $('#manual-mode .stop-irrigation-btn').hide();
+                        $('#manual-mode .start-irrigation-btn').show();
+                        console.log('Irrigation stopped');
                         break;
                 }
             }
