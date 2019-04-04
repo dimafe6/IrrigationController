@@ -3,8 +3,9 @@
 #include <ArduinoJson.h>
 #include "ThingSpeak.h"
 #include <WiFi.h>
-#include "SD.h"
 #include <FS.h>
+#include <SPIFFS.h>
+#include "SD.h"
 #include <ESPAsyncWebServer.h>
 #include <SPIFFSEditor.h>
 #include <Wire.h>
@@ -24,6 +25,8 @@ WiFiClient client;
 RtcDS3231<TwoWire> RTC(Wire);
 DefineCalendarType(Calendar, CALENDAR_MAX_NUM_EVENTS);
 Calendar MyCalendar;
+AsyncWebHandler *spiffsEditorHandler;
+AsyncWebHandler *sdEditorHandler;
 
 struct WeatherData
 {
@@ -45,6 +48,7 @@ int currentBalance = NULL;
 void setup()
 {
   initSerial();
+  initSPIFFS();
   initSD();
   initRtc();
   initWiFi();
@@ -63,23 +67,22 @@ void initWebServer()
   ws.onEvent(onWsEvent);
   server.addHandler(&ws);
   server.addHandler(&events);
-  server.addHandler(new SPIFFSEditor(SD, SPIFFS_EDITOR_LOGIN, SPIFFS_EDITOR_PASS));
   server.rewrite("/wifi", "/wifi.html");
+  server.serveStatic("/bootstrap.min.css", SPIFFS, "/bootstrap.min.css").setCacheControl("max-age=31536000");
+  server.serveStatic("/app.js", SPIFFS, "/app.js").setCacheControl("max-age=0");
+  server.serveStatic("/", SPIFFS, "/").setDefaultFile("index.html");
 
-  server.serveStatic("/fa-solid-900.woff2", SD, "/fa-solid-900.woff2").setCacheControl("max-age=31536000");
-  server.serveStatic("/fa-solid-900.ttf", SD, "/fa-solid-900.ttf").setCacheControl("max-age=31536000");
-  server.serveStatic("/fa-solid-900.woff", SD, "/fa-solid-900.woff").setCacheControl("max-age=31536000");
-  server.serveStatic("/glyphicons-halflings-regular.eot", SD, "/glyphicons-halflings-regular.eot").setCacheControl("max-age=31536000");
-  server.serveStatic("/glyphicons-halflings-regular.svg", SD, "/glyphicons-halflings-regular.svg").setCacheControl("max-age=31536000");
-  server.serveStatic("/glyphicons-halflings-regular.ttf", SD, "/glyphicons-halflings-regular.ttf").setCacheControl("max-age=31536000");
-  server.serveStatic("/glyphicons-halflings-regular.woff", SD, "/glyphicons-halflings-regular.woff").setCacheControl("max-age=31536000");
-  server.serveStatic("/glyphicons-halflings-regular.woff2", SD, "/glyphicons-halflings-regular.woff2").setCacheControl("max-age=31536000");
-  server.serveStatic("/all.min.css", SD, "/all.min.css").setCacheControl("max-age=31536000");
-  server.serveStatic("/bootstrap.min.css", SD, "/bootstrap.min.css").setCacheControl("max-age=31536000");
-  server.serveStatic("/app.js", SD, "/app.js").setCacheControl("max-age=0");
-  server.serveStatic("/bootstrap.min.js", SD, "/bootstrap.min.js").setCacheControl("max-age=31536000");
-  server.serveStatic("/jquery.min.js", SD, "/jquery.min.js").setCacheControl("max-age=31536000");
-  server.serveStatic("/", SD, "/").setDefaultFile("index.html");
+  server.on("/edit/sd", [](AsyncWebServerRequest *request) {
+    server.removeHandler(spiffsEditorHandler);
+    sdEditorHandler = &server.addHandler(new SPIFFSEditor(SD, SPIFFS_EDITOR_LOGIN, SPIFFS_EDITOR_PASS));
+    request->redirect("/edit");
+  });
+
+  server.on("/edit/spiffs", [](AsyncWebServerRequest *request) {
+    server.removeHandler(sdEditorHandler);
+    spiffsEditorHandler = &server.addHandler(new SPIFFSEditor(SPIFFS, SPIFFS_EDITOR_LOGIN, SPIFFS_EDITOR_PASS));
+    request->redirect("/edit");
+  });
 
   server.onNotFound([](AsyncWebServerRequest *request) {
     request->send(404);
@@ -150,7 +153,7 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       {
         for (byte zone = 1; zone < 5; zone++)
         {
-          MyCalendar.removeAll(zone);          
+          MyCalendar.removeAll(zone);
         }
 
         ws.textAll("{\"command\":\"stopManualIrrigation\"}");
@@ -161,9 +164,8 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
 
 void initSD()
 {
-  //spiSD.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
-  //if (!SD.begin(SD_CS, spiSD))
-  if (!SD.begin())
+  spiSD.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+  if (!SD.begin(SD_CS, spiSD))
   {
     Serial.println("Card Mount Failed");
     return;
@@ -199,6 +201,14 @@ void initSD()
   Serial.printf("SD Card Size: %lluMB\n", cardSize);
   Serial.printf("Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
   Serial.printf("Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
+}
+
+void initSPIFFS()
+{
+  SPIFFS.begin(true);
+  Serial.println("");
+  Serial.printf("Total space: %dKB\n", SPIFFS.totalBytes() / (1024));
+  Serial.printf("Used space: %dKB\n", SPIFFS.usedBytes() / (1024));
 }
 
 void initSerial()
