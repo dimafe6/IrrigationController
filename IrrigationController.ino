@@ -11,6 +11,7 @@
 #include <Wire.h>
 #include <RtcDS3231.h>
 #include <Time.h>
+#include <Update.h>
 #include "src/Chronos/src/Chronos.h"
 
 uint16_t touchCalibration[5] = {214, 3478, 258, 3520, 5};
@@ -44,19 +45,28 @@ long HC12LastUpdate;
 long calendarLastCheck;
 
 int currentBalance = NULL;
+bool shouldReboot = false;
 
 void setup()
 {
   initSerial();
-  initSPIFFS();
   initSD();
+  initSPIFFS();
   initRtc();
   initWiFi();
   initWebServer();
+  //Serial.println("UPDATED!!!!!");
 }
 
 void loop()
 {
+
+  if (shouldReboot)
+  {
+    Serial.println("Rebooting...");
+    delay(100);
+    ESP.restart();
+  }
   checkCalendar();
   listenSIM800();
   listenRadio();
@@ -87,6 +97,32 @@ void initWebServer()
   server.onNotFound([](AsyncWebServerRequest *request) {
     request->send(404);
   });
+
+  server.on("/update", HTTP_POST, [](AsyncWebServerRequest *request) {
+    shouldReboot = !Update.hasError();
+    AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", shouldReboot ? "OK" : "FAIL");
+    response->addHeader("Connection", "close");
+    request->send(response); }, [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+    if(!index){
+      Serial.printf("Update Start: %s\n", filename.c_str());
+      if(!Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000)){
+        Update.printError(Serial);
+      }
+    }
+    if(!Update.hasError()){
+      if(Update.write(data, len) != len){
+        Update.printError(Serial);
+      }
+    }
+    if(final){
+      if(Update.end(true)){
+        Serial.printf("Update Success: %uB\n", index+len);
+        request->redirect("/");
+      } else {
+        Update.printError(Serial);
+      }
+    } });
+
   server.begin();
 }
 
@@ -162,8 +198,85 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
   }
 }
 
+void performUpdate(Stream &updateSource, size_t updateSize)
+{
+  if (Update.begin(updateSize))
+  {
+    size_t written = Update.writeStream(updateSource);
+    if (written == updateSize)
+    {
+      Serial.println("Written : " + String(written) + " successfully");
+    }
+    else
+    {
+      Serial.println("Written only : " + String(written) + "/" + String(updateSize) + ". Retry?");
+    }
+    if (Update.end())
+    {
+      Serial.println("OTA done!");
+      if (Update.isFinished())
+      {
+        Serial.println("Update successfully completed. Rebooting.");
+        shouldReboot = true;
+      }
+      else
+      {
+        Serial.println("Update not finished? Something went wrong!");
+      }
+    }
+    else
+    {
+      Serial.println("Error Occurred. Error #: " + String(Update.getError()));
+    }
+  }
+  else
+  {
+    Serial.println("Not enough space to begin OTA");
+  }
+}
+
+void updateFromFS(fs::FS &fs)
+{
+  File updateBin = fs.open("/update.bin");
+  if (updateBin)
+  {
+    if (updateBin.isDirectory())
+    {
+      Serial.println("Error, update.bin is not a file");
+      updateBin.close();
+      return;
+    }
+
+    size_t updateSize = updateBin.size();
+
+    if (updateSize > 0)
+    {
+      Serial.println("Try to start update");
+      performUpdate(updateBin, updateSize);
+    }
+    else
+    {
+      Serial.println("Error, file is empty");
+    }
+
+    updateBin.close();
+    fs.remove("/update.bin");
+  }
+  else
+  {
+    Serial.println("No updates");
+  }
+
+  if (shouldReboot)
+  {
+    delay(500);
+    ESP.restart();
+  }
+}
+
 void initSD()
 {
+  Serial.println("");
   spiSD.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
   if (!SD.begin(SD_CS, spiSD))
   {
@@ -201,6 +314,8 @@ void initSD()
   Serial.printf("SD Card Size: %lluMB\n", cardSize);
   Serial.printf("Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
   Serial.printf("Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
+
+  updateFromFS(SD);
 }
 
 void initSPIFFS()
