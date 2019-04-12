@@ -29,6 +29,16 @@ Calendar MyCalendar;
 AsyncWebHandler *spiffsEditorHandler;
 AsyncWebHandler *sdEditorHandler;
 
+enum Periodicity
+{
+  HOURLY,
+  EVERY_X_HOUR,
+  DAILY,
+  EVERY_X_DAYS,
+  WEEKLY,
+  MONTHLY
+};
+
 struct WeatherData
 {
   int temp = NULL;
@@ -46,6 +56,7 @@ long calendarLastCheck;
 
 int currentBalance = NULL;
 bool shouldReboot = false;
+bool manualIrrigationRunning = false;
 
 void setup()
 {
@@ -174,27 +185,137 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
         for (int zone : zones)
         {
           MyCalendar.removeAll(zone);
-          if (MyCalendar.add(Chronos::Event(zone, Chronos::DateTime::now(), Chronos::Span::Minutes(duration))))
+          manualIrrigationRunning = MyCalendar.add(Chronos::Event(zone, Chronos::DateTime::now(), Chronos::Span::Minutes(duration)));
+          if (manualIrrigationRunning)
           {
             //TODO: repeat this message untill irrigation finished
-            ws.textAll("{\"command\":\"manualIrrigation\",\"status\":true}");
+            ws.textAll(MANUAL_IRRIGATION_STATUS_TRUE);
           }
           else
           {
-            ws.textAll("{\"command\":\"manualIrrigation\",\"status\":false}");
+            ws.textAll(MANUAL_IRRIGATION_STATUS_FALSE);
           }
         }
       }
       else if (command == "stopManualIrrigation")
       {
-        for (byte zone = 1; zone < 5; zone++)
+        removeScheduleForAllZones();
+
+        ws.textAll(MANUAL_IRRIGATION_STOP);
+      }
+      else if (command == "addSchedule")
+      {
+        Serial.println("addSchedule");
+        removeScheduleForAllZones();
+
+        int duration = root["data"]["duration"];
+        JsonArray &zones = root["data"]["zones"];
+        byte periodicity = root["data"]["periodicity"];
+
+        switch (periodicity)
         {
-          MyCalendar.removeAll(zone);
+        case Periodicity::HOURLY:
+        {
+          Serial.println("HOURLY");
+          byte minute = root["data"]["minute"];
+          byte second = root["data"]["second"];
+          for (int zone : zones)
+          {
+            MyCalendar.add(Chronos::Event(zone, Chronos::Mark::Hourly(minute, second), Chronos::Span::Minutes(duration)));
+          }
+        }
+        break;
+        case Periodicity::EVERY_X_HOUR:
+        {
+          Serial.println("EVERY_X_HOUR");
+          byte hours = root["data"]["hours"];
+          byte minute = root["data"]["minute"];
+          byte second = root["data"]["second"];
+          for (int zone : zones)
+          {
+            MyCalendar.add(Chronos::Event(zone, Chronos::Mark::EveryXHours(hours, minute, second), Chronos::Span::Minutes(duration)));
+          }
+        }
+        break;
+        case Periodicity::DAILY:
+        {
+          Serial.println("DAILY");
+          byte hour = root["data"]["hour"];
+          byte minute = root["data"]["minute"];
+          for (int zone : zones)
+          {
+            MyCalendar.add(Chronos::Event(zone, Chronos::Mark::Daily(hour, minute), Chronos::Span::Minutes(duration)));
+          }
+        }
+        break;
+        case Periodicity::EVERY_X_DAYS:
+        {
+          Serial.println("EVERY_X_DAYS");
+          byte days = root["data"]["days"];
+          byte hour = root["data"]["hour"];
+          byte minute = root["data"]["minute"];
+          for (int zone : zones)
+          {
+            MyCalendar.add(Chronos::Event(zone, Chronos::Mark::EveryXDays(days, hour, minute), Chronos::Span::Minutes(duration)));
+          }
+        }
+        break;
+        case Periodicity::WEEKLY:
+        {
+          Serial.println("WEEKLY");
+          byte dayOfWeek = root["data"]["dayOfWeek"];
+          byte hour = root["data"]["hour"];
+          byte minute = root["data"]["minute"];
+          for (int zone : zones)
+          {
+            MyCalendar.add(Chronos::Event(zone, Chronos::Mark::Weekly(dayOfWeek, hour, minute), Chronos::Span::Minutes(duration)));
+          }
+        }
+        break;
+        case Periodicity::MONTHLY:
+        {
+          Serial.println("MONTHLY");
+          byte dayOfMonth = root["data"]["dayOfMonth"];
+          byte hour = root["data"]["hour"];
+          byte minute = root["data"]["minute"];
+          for (int zone : zones)
+          {
+            MyCalendar.add(Chronos::Event(zone, Chronos::Mark::Monthly(dayOfMonth, hour, minute), Chronos::Span::Minutes(duration)));
+          }
+        }
+        break;
         }
 
-        ws.textAll("{\"command\":\"stopManualIrrigation\"}");
+        ws.textAll(SCHEDULE_ADD);
       }
     }
+  }
+}
+
+void sendCalendarEventsToWS()
+{
+  StaticJsonBuffer<1024> jsonBuffer;
+  JsonObject& root = jsonBuffer.createArray();
+
+  for (uint8_t i = 0; i < CALENDAR_MAX_NUM_EVENTS; i++)
+  {
+    Chronos::Event *evt = this->eventSlot(i);
+    if (NULL == evt)
+    {
+      break;
+    }
+
+    JsonObject& event = jsonBuffer.createObject();
+    event['id'] = evt->id();
+    root.add(event);
+  }
+}
+
+void removeScheduleForAllZones()
+{
+  for (byte zone = 1; zone < 5; zone++)
+  {
+    MyCalendar.removeAll(zone);
   }
 }
 

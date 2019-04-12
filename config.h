@@ -39,3 +39,9 @@
 #define SD_MISO 33
 #define SD_MOSI 32
 #define SD_CS 13
+
+/* WS messages */
+#define MANUAL_IRRIGATION_STATUS_TRUE "{\"command\":\"manualIrrigation\",\"status\":true}"
+#define MANUAL_IRRIGATION_STATUS_FALSE "{\"command\":\"manualIrrigation\",\"status\":false}"
+#define MANUAL_IRRIGATION_STOP "{\"command\":\"stopManualIrrigation\"}"
+#define SCHEDULE_ADD "{\"command\":\"addSchedule\"}"
