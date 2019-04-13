@@ -19,7 +19,6 @@ uint16_t touchCalibration[5] = {214, 3478, 258, 3520, 5};
 SPIClass spiSD(HSPI);
 AsyncWebServer server(HTTP_PORT);
 AsyncWebSocket ws("/ws");
-AsyncEventSource events("/events");
 HardwareSerial HC12(1);
 HardwareSerial SIM800(2);
 WiFiClient client;
@@ -71,15 +70,14 @@ void setup()
 
 void loop()
 {
-
   if (shouldReboot)
   {
     Serial.println("Rebooting...");
     delay(100);
     ESP.restart();
   }
-  checkCalendar();
   listenSIM800();
+  checkCalendar();  
   listenRadio();
 }
 
@@ -87,9 +85,6 @@ void initWebServer()
 {
   ws.onEvent(onWsEvent);
   server.addHandler(&ws);
-  server.addHandler(&events);
-  server.rewrite("/wifi", "/wifi.html");
-  server.serveStatic("/bootstrap.min.css", SPIFFS, "/bootstrap.min.css").setCacheControl("max-age=31536000");
   server.serveStatic("/app.js", SPIFFS, "/app.js").setCacheControl("max-age=0");
   server.serveStatic("/", SPIFFS, "/").setDefaultFile("index.html");
 
@@ -291,7 +286,7 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
     }
   }
 }
-
+/*
 void sendCalendarEventsToWS()
 {
   StaticJsonBuffer<1024> jsonBuffer;
@@ -310,7 +305,7 @@ void sendCalendarEventsToWS()
     root.add(event);
   }
 }
-
+*/
 void removeScheduleForAllZones()
 {
   for (byte zone = 1; zone < 5; zone++)
@@ -520,6 +515,7 @@ void checkCalendar()
       {
         Serial.print((int)occurrenceList1[i].id);
         Serial.print(": ");
+        occurrenceList1[i].start.printTo(Serial);
         occurrenceList1[i].finish.printTo(Serial);
         Serial.println("");
       }
@@ -587,7 +583,7 @@ void updateWeatherData(int temp, int pressure, int humidity, int light, int wate
   data["groundHum"] = weatherData.groundHum;
   answer.printTo(answerString);
 
-  ws.textAll(answerString.c_str());
+  //ws.textAll(answerString.c_str());
 }
 
 void listenRadio()
@@ -668,16 +664,18 @@ void sendWeatherDataToThingSpeak()
 
 void initWiFi()
 {
+  WiFi.mode(WIFI_STA);
   WiFi.persistent(true);
   WiFi.setAutoConnect(true);
   WiFi.setAutoReconnect(true);
 
   WiFi.onEvent(WiFiEvent);
-  WiFi.softAP("IrrigationController", SECRET_WEBSERVER_PASS);
+  //WiFi.softAP("IrrigationController", SECRET_WEBSERVER_PASS);
 
   Serial.println("");
   Serial.println("Connecting to WIFI");
   WiFi.begin();
+  WiFi.setSleep(false);
 }
 
 void WiFiEvent(WiFiEvent_t event)
@@ -716,6 +714,7 @@ void WiFiEvent(WiFiEvent_t event)
     break;
   case SYSTEM_EVENT_STA_LOST_IP:
     Serial.println("Lost IP address and IP address is reset to 0");
+    WiFi.reconnect();
     break;
   case SYSTEM_EVENT_STA_WPS_ER_SUCCESS:
     Serial.println("WiFi Protected Setup (WPS): succeeded in enrollee mode");
@@ -774,7 +773,10 @@ void listenSIM800()
   {
     String response = SIM800.readString();
     response.trim();
-    Serial.println(response);
+    if (response != "")
+    {
+      Serial.println(response);
+    }
 
     // USSD Handler
     if (response.startsWith("+CUSD:"))

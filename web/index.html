@@ -5,10 +5,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="X-UA-Compatible" content="ie=edge" />
-    <link rel="stylesheet" href="/fontello.css">
-    <link rel="stylesheet" href="/bootstrap.min.css" />
-    <link rel="stylesheet" href="/default.css" />
-    <link rel="stylesheet" href="/default.time.css" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.8.1/css/all.min.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.6.3/compressed/themes/default.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.6.3/compressed/themes/default.time.css" />
     <style type="text/css">
         body {
             background-color: #ddd
@@ -44,11 +45,16 @@
             background-color: #444
         }
 
-        .nav-tabs .icon {
+        .nav-tabs .glyphicon {
             color: #fff
         }
-
-        .nav-tabs .active .icon {
+        .nav-tabs .active .glyphicon {
+            color: #333
+        }
+        .nav-tabs .fa {
+            color: #fff
+        }
+        .nav-tabs .active .fa {
             color: #333
         }
 
@@ -96,15 +102,15 @@
             font-size: 13px
         }
     </style>
-    <script src="/jquery.min.js"></script>
-    <script src="/bootstrap.min.js"></script>
-    <script src="/moment.min.js"></script>
-    <script src="/moment-duration-format.min.js"></script>
-    <script src="/picker.js"></script>
-    <script src="/picker.time.js"></script>
-    <script src="/bootstrap-notify.min.js"></script>
-    <title>Irrigation controller</title>
 
+    <title>Irrigation controller</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.6.3/compressed/picker.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.6.3/compressed/picker.time.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-duration-format/2.2.2/moment-duration-format.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mouse0270-bootstrap-notify/3.1.7/bootstrap-notify.min.js"></script>
     <script type="text/javascript" src="app.js"></script>
 </head>
 
@@ -118,19 +124,39 @@
                 <div class="tabs-left">
                     <ul class="nav nav-tabs">
                         <li>
-                            <a href="#dashboard" data-toggle="tab"><span class="icon icon-chart-line"></span></a>
+                            <a href="#dashboard" data-toggle="tab">
+                                <span class="fa fa-chart-line"></span>
+                            </a>
                         </li>
                         <li>
-                            <a href="#manual-mode" data-toggle="tab"><span class="icon icon-clock"></span></a>
+                            <a href="#manual-mode" data-toggle="tab">
+                                <span class="fa fa-user-clock"></span>
+                            </a>
                         </li>
                         <li class="active">
-                            <a href="#schedule-mode" data-toggle="tab"><span class="icon icon-calendar"></span></a>
+                            <a href="#schedule-mode" data-toggle="tab">
+                                <span class="fa fa-calendar-alt"></span>
+                            </a>
                         </li>
                         <li>
-                            <a href="#config" data-toggle="tab"><span class="icon icon-cog"></span></a>
+                            <a href="#config" data-toggle="tab">
+                                <span class="fa fa-cog"></span>
+                            </a>
                         </li>
                         <li>
-                            <a href="#weather-config" data-toggle="tab"><span class="icon icon-hail-inv"></span></a>
+                            <a href="#weather-config" data-toggle="tab">
+                                <span class="fa fa-cloud-sun-rain"></span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#wifi-config" data-toggle="tab">
+                                <span class="fa fa-wifi"></span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#firmware-config" data-toggle="tab">
+                                <span class="fa fa-upload"></span>
+                            </a>
                         </li>
                     </ul>
                     <div class="tab-content">
@@ -166,20 +192,18 @@
                                 <div class="form-group text-center">
                                     <label>Duration</label>
                                     <div class="input-group">
-                                        <input type="number" min="1" max="1440" id="duration" class="form-control"
-                                            aria-describedby="manual-duration-addon" value="5">
+                                        <input type="number" min="1" max="1440" id="duration" class="form-control" aria-describedby="manual-duration-addon" value="5">
                                         <span class="input-group-addon" id="manual-duration-addon">Min</span>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-md-4 col-md-offset-4 text-center">
-                                <button onclick="stopManualIrrigation()" class="btn btn-danger stop-irrigation-btn"
-                                    style="display: none">
-                                    <i class="icon icon-stop"></i>
+                                <button onclick="stopManualIrrigation()" class="btn btn-danger stop-irrigation-btn" style="display: none">
+                                    <i class="fa fa-stop"></i>
                                     Stop irrigation
                                 </button>
                                 <button onclick="manualIrrigation()" class="btn btn-success start-irrigation-btn">
-                                    <i class="icon icon-play"></i>
+                                    <i class="fa fa-play"></i>
                                     Start irrigation
                                 </button>
                             </div>
@@ -222,8 +246,7 @@
                             </div>
 
                             <div class="period-block hourly" style="display: none">
-                                <div class="col-md-4 col-md-offset-4 text-center"
-                                    style="padding-left: 0; padding-right: 0">
+                                <div class="col-md-4 col-md-offset-4 text-center" style="padding-left: 0; padding-right: 0">
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label>Minute</label>
@@ -240,8 +263,7 @@
                             </div>
 
                             <div class="period-block every-x-hours" style="display: none;">
-                                <div class="col-md-4 col-md-offset-4 text-center"
-                                    style="padding-left: 0; padding-right: 0">
+                                <div class="col-md-4 col-md-offset-4 text-center" style="padding-left: 0; padding-right: 0">
                                     <div class="col-md-4">
                                         <div class="form-group">
                                             <label>Hours</label>
@@ -273,13 +295,11 @@
                             </div>
 
                             <div class="period-block every-x-days" style="display: none;">
-                                <div class="col-md-4 col-md-offset-4 text-center"
-                                    style="padding-left: 0; padding-right: 0">
+                                <div class="col-md-4 col-md-offset-4 text-center" style="padding-left: 0; padding-right: 0">
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label>Days</label>
-                                            <input type="number" class="time-days form-control" value="2" min="1"
-                                                max="365" />
+                                            <input type="number" class="time-days form-control" value="2" min="1" max="365" />
                                         </div>
                                     </div>
                                     <div class="col-md-6">
@@ -294,28 +314,30 @@
                             <div class="period-block weekly" style="display: none">
                                 <div class="col-md-4 col-md-offset-4 text-center">
                                     <div class="form-group text-center" id="weekdays-selector">
-                                        <div><label>Week day</label></div>
+                                        <div>
+                                            <label>Week day</label>
+                                        </div>
                                         <div class="btn-group btn-group-justified" data-toggle="buttons">
+                                            <label class="btn btn-xs btn-default">
+                                                <input type="radio" name="weekday[]" value="1">SUN
+                                            </label>
                                             <label class="btn btn-xs btn-default active">
-                                                <input type="radio" value="1">MON
+                                                <input type="radio" name="weekday[]" value="2">MON
                                             </label>
                                             <label class="btn btn-xs btn-default">
-                                                <input type="radio" value="2">TUE
+                                                <input type="radio" name="weekday[]" value="3">TUE
                                             </label>
                                             <label class="btn btn-xs btn-default">
-                                                <input type="radio" value="3">WED
+                                                <input type="radio" name="weekday[]" value="4">WED
                                             </label>
                                             <label class="btn btn-xs btn-default">
-                                                <input type="radio" value="4">THU
+                                                <input type="radio" name="weekday[]" value="5">THU
                                             </label>
                                             <label class="btn btn-xs btn-default">
-                                                <input type="radio" value="5">FRI
+                                                <input type="radio" name="weekday[]" value="6">FRI
                                             </label>
                                             <label class="btn btn-xs btn-default">
-                                                <input type="radio" value="6">SAT
-                                            </label>
-                                            <label class="btn btn-xs btn-default">
-                                                <input type="radio" value="7">SUN
+                                                <input type="radio" name="weekday[]" value="7">SAT
                                             </label>
                                         </div>
                                     </div>
@@ -327,13 +349,11 @@
                             </div>
 
                             <div class="period-block monthly" style="display: none;">
-                                <div class="col-md-4 col-md-offset-4 text-center"
-                                    style="padding-left: 0; padding-right: 0">
+                                <div class="col-md-4 col-md-offset-4 text-center" style="padding-left: 0; padding-right: 0">
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label>Day of month</label>
-                                            <input type="number" class="time-day-of-month form-control" value="1"
-                                                min="1" max="31" />
+                                            <input type="number" class="time-day-of-month form-control" value="1" min="1" max="31" />
                                         </div>
                                     </div>
                                     <div class="col-md-6">
@@ -349,8 +369,7 @@
                                 <div class="form-group">
                                     <label>Duration</label>
                                     <div class="input-group">
-                                        <input type="number" class="duration form-control"
-                                            aria-describedby="duration-addon" value="5">
+                                        <input type="number" class="duration form-control" aria-describedby="duration-addon" value="5">
                                         <span class="input-group-addon" id="duration-addon">Min</span>
                                     </div>
                                 </div>
@@ -361,7 +380,7 @@
                             <div class="col-md-4 col-md-offset-4 text-center">
                                 <div class="form-group">
                                     <button class="btn btn-success add-schedule" onclick="addSchedule()">
-                                        <i class="icon icon-calendar-plus-o"></i>
+                                        <i class="fa fa-calendar-plus"></i>
                                         Add schedule
                                     </button>
                                 </div>
@@ -381,6 +400,40 @@
                         <div class="tab-pane" id="weather-config">
                             <div class="page-header text-center">
                                 <h2>Weather configuration</h2>
+                            </div>
+                        </div>
+                        <div class="tab-pane" id="wifi-config">
+                            <div class="page-header text-center">
+                                <h2>WiFi configuration</h2>
+                            </div>
+                            <div class="col-md-4 col-md-offset-4 text-center">
+                                <div class="form-group">
+                                    <label>SSID</label>
+                                    <input type="text" class="form-control" id="ssid">
+                                </div>
+                                <div class="form-group">
+                                    <label>Password</label>
+                                    <input type="password" class="form-control" id="pass">
+                                </div>
+                                <div class="form-group">
+                                    <button onclick="saveWifiConfig()" class="btn btn-success">Save</button>
+                                </div>
+
+                            </div>
+                        </div>
+                        <div class="tab-pane" id="firmware-config">
+                            <div class="page-header text-center">
+                                <h2>Firmware update</h2>
+                            </div>
+                            <div class="col-md-4 col-md-offset-4 text-center">
+                                <form method="POST" action="/update" enctype="multipart/form-data">
+                                    <div class="form-group">
+                                        <input type="file" class="form-control" name="update">
+                                    </div>
+                                    <div class="form-group">
+                                        <input type="submit" class="btn btn-default" value="Update">
+                                    </div>
+                                </form>
                             </div>
                         </div>
                     </div>

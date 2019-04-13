@@ -1,7 +1,15 @@
 var ws;
-var weekNames = ["Monday", "Tuesday", "Wednesday", "Thuesday", "Friday", "Saturday", "Sunday"];
+var weekNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thuesday", "Friday", "Saturday"];
 
 $(document).ready(function () {
+    setInterval(function(){location.reload()}, 10000);
+    moment.updateLocale('en', {
+        week: {
+            dow: 0,
+            doy: 6
+        }
+    });
+    
     WebSocketBegin();
     $('.time-minute, .time-second').pickatime({
         format: 'i',
@@ -79,7 +87,7 @@ $(document).ready(function () {
 
     $('#schedule-mode-zones input[type="checkbox"]').change(getSchedule);
     $('.time-days').change(getSchedule);
-    $('#weekdays-selector input').click(getSchedule);
+    $('#weekdays-selector input').change(getSchedule);
     $('#schedule-mode .duration').change(getSchedule);
 });
 
@@ -316,7 +324,7 @@ function getExplanationForSchedule(scheduleObject) {
         case 4:
             var currDate = moment();
             var dayOfWeekStr = weekNames[scheduleObject.dayOfWeek - 1];
-            currDate.day(scheduleObject.dayOfWeek).hour(scheduleObject.hour).minute(scheduleObject.minute).second(0);
+            currDate.day(scheduleObject.dayOfWeek-1).hour(scheduleObject.hour).minute(scheduleObject.minute).second(0);
             explanationString = `Irrigation for zone(s) ${zonesString} every ${dayOfWeekStr} on ${currDate.format('hh[h]:mm[m][00s]')} with a duration of ${durationStr}\n`;
             for (var i = 0; i < 3; i++) {
                 currDate.add(1, 'w');
@@ -361,4 +369,14 @@ function stopManualIrrigation() {
     ws.send('{"command": "stopManualIrrigation"}');
     $('#manual-mode .stop-irrigation-btn').hide();
     $('#manual-mode .start-irrigation-btn').show();
+}
+
+function saveWifiConfig() {
+    var command = {};
+    command.command = "WiFiConfig";
+    command.data = {};
+    command.data.ssid = $("#ssid").value;
+    command.data.pass = $("#pass").value;
+
+    ws.send(JSON.stringify(command));
 }
