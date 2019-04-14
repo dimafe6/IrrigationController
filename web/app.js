@@ -1,16 +1,21 @@
+var websocketServerLocation = "ws://" + location.hostname + "/ws";
 var ws;
 var weekNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thuesday", "Friday", "Saturday"];
 
+window.addEventListener('beforeunload', (event) => {
+    ws.close();
+});
+
 $(document).ready(function () {
-    setInterval(function(){location.reload()}, 10000);
     moment.updateLocale('en', {
         week: {
             dow: 0,
             doy: 6
         }
     });
-    
-    WebSocketBegin();
+
+    WebSocketBegin(websocketServerLocation);
+
     $('.time-minute, .time-second').pickatime({
         format: 'i',
         interval: 1,
@@ -95,9 +100,9 @@ function notify(text, type) {
     $.notify(text, { type: type, placement: { from: 'top', align: 'center' } });
 }
 
-function WebSocketBegin() {
+function WebSocketBegin(location) {
     if ("WebSocket" in window) {
-        ws = new WebSocket("ws://" + location.hostname + "/ws");
+        ws = new WebSocket(location);
         ws.onopen = function () {
             notify('WS connected', 'success');
             $('#ws-n-conn').hide();
@@ -112,15 +117,8 @@ function WebSocketBegin() {
                 var status = jsonObject.status || false;
                 switch (command) {
                     case 'manualIrrigation':
-                        if (status) {
-                            $('#manual-mode .stop-irrigation-btn').show();
-                            $('#manual-mode .start-irrigation-btn').hide();
-                            notify('Manual irrigation started', 'success');
-                        } else {
-                            $('#manual-mode .stop-irrigation-btn').hide();
-                            $('#manual-mode .start-irrigation-btn').show();
-                            notify('Manual irrigation has not started', 'danger');
-                        }
+                        $('#manual-mode .stop-irrigation-btn').show();
+                        $('#manual-mode .start-irrigation-btn').hide();
                         break;
                     case 'stopManualIrrigation':
                         $('#manual-mode .stop-irrigation-btn').hide();
@@ -131,18 +129,26 @@ function WebSocketBegin() {
                         notify('Schedule added', 'success');
                         $('.add-schedule').show();
                         break;
+                    case 'getEvents':
+                        console.log("getEvents");
+                        break;
+                    case 'removeEvent':
+                        console.log("removeEvent");
+                        break;
                 }
             }
         };
 
         ws.onclose = function () {
             $('#ws-n-conn').show();
+            setTimeout(function(){WebSocketBegin(websocketServerLocation)}, 5000);
         };
 
         ws.onerror = function (error) {
             if (error.message !== undefined) {
                 notify('WS error: ' + error.message, 'danger');
             }
+            setTimeout(function(){WebSocketBegin(websocketServerLocation)}, 5000);
         };
     } else {
         notify('WebSocket NOT supported by your Browser!', 'danger');
@@ -324,7 +330,7 @@ function getExplanationForSchedule(scheduleObject) {
         case 4:
             var currDate = moment();
             var dayOfWeekStr = weekNames[scheduleObject.dayOfWeek - 1];
-            currDate.day(scheduleObject.dayOfWeek-1).hour(scheduleObject.hour).minute(scheduleObject.minute).second(0);
+            currDate.day(scheduleObject.dayOfWeek - 1).hour(scheduleObject.hour).minute(scheduleObject.minute).second(0);
             explanationString = `Irrigation for zone(s) ${zonesString} every ${dayOfWeekStr} on ${currDate.format('hh[h]:mm[m][00s]')} with a duration of ${durationStr}\n`;
             for (var i = 0; i < 3; i++) {
                 currDate.add(1, 'w');
@@ -377,6 +383,22 @@ function saveWifiConfig() {
     command.data = {};
     command.data.ssid = $("#ssid").value;
     command.data.pass = $("#pass").value;
+
+    ws.send(JSON.stringify(command));
+}
+
+function getEvents() {
+    var command = {};
+    command.command = "getEvents";
+
+    ws.send(JSON.stringify(command));
+}
+
+function removeEvent(evId) {
+    var command = {};
+    command.command = "removeEvent";
+    command.data = {};
+    command.data.evId = evId;
 
     ws.send(JSON.stringify(command));
 }
