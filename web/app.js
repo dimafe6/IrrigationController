@@ -1,12 +1,16 @@
 var websocketServerLocation = "ws://" + location.hostname + "/ws";
 var ws;
 var weekNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thuesday", "Friday", "Saturday"];
+var periodicityList = { "-1": "Once", "0": "Hourly", "1": "Every X hours", "2": "Daily", "3": "Every X days", "4": "Weekly", "5": "Monthly" };
+var calendarEvents = [];
 
 window.addEventListener('beforeunload', (event) => {
     ws.close();
 });
 
 $(document).ready(function () {
+    processGetEvents(); //TODO: only for test
+
     moment.updateLocale('en', {
         week: {
             dow: 0,
@@ -22,14 +26,14 @@ $(document).ready(function () {
         min: [0, 0],
         max: [0, 59],
         clear: '',
-        onClose: getSchedule
+        onSet: getSchedule
     });
 
     $('.time-hour-minute').pickatime({
         format: 'HH:i',
         interval: 15,
         clear: '',
-        onClose: getSchedule
+        onSet: getSchedule
     }).pickatime('picker').set('select', 0);
 
     $('.time-hours').pickatime({
@@ -38,7 +42,7 @@ $(document).ready(function () {
         min: [1, 0],
         max: [23, 0],
         clear: '',
-        onClose: getSchedule
+        onSet: getSchedule
     }).pickatime('picker').set('select', 1);
 
     $('.time-day-of-month').pickatime({
@@ -47,7 +51,7 @@ $(document).ready(function () {
         min: [0, 1],
         max: [0, 28], //Minimum days for each months
         clear: '',
-        onClose: getSchedule
+        onSet: getSchedule
     }).pickatime('picker').set('select', 1);
 
     $('.time-minute, .time-second, .time-hour-minute, .time-hours, .time-day-of-month').each(function () {
@@ -94,10 +98,177 @@ $(document).ready(function () {
     $('.time-days').change(getSchedule);
     $('#weekdays-selector input').change(getSchedule);
     $('#schedule-mode .duration').change(getSchedule);
+
+    $(document).on('click', '.event-actions .action-remove', function () {
+        var evId = parseInt($(this).closest('tr').find('td:first').text());
+        removeEvent(evId);
+    });
+
+    $(document).on('click', '.event-actions .action-edit', function () {
+        var evId = parseInt($(this).closest('tr').find('td:first').text());
+        var slot = getSlotById(evId);
+        if (null == slot) {
+            return;
+        }
+
+        cancelEditSchedule();
+
+        $('#evId').val(evId);
+        $('#events-list tbody td.evId[data-evid="' + evId + '"]').closest('tr').addClass('bg-warning');
+        $('#add-event-header').text('Edit event #' + evId);
+        $('#schedule-mode .add-schedule').hide();
+        $('#schedule-mode .save-schedule').show();
+        $('#schedule-mode .cancel-edit-schedule').show();
+
+        $('#schedule-mode-zones label').removeClass('active');
+        $.each(slot.zones, function (index, value) {
+            $('#schedule-mode-zones input[value="' + value + '"]').parent().addClass('active');
+        });
+
+        $('#periodicity').val(slot.periodicity).trigger('change');
+        $('#duration').val(slot.duration).trigger('change');
+
+        switch (slot.periodicity) {
+            case 0:
+                var $periodBlock = $('.period-block.hourly');
+                $periodBlock.find('.time-minute').pickatime().pickatime('picker').set('select', slot.minute);
+                $periodBlock.find('.time-second').pickatime().pickatime('picker').set('select', slot.second);
+                break;
+            case 1:
+                var $periodBlock = $('.period-block.every-x-hours');
+                $periodBlock.find('.time-hours').pickatime().pickatime('picker').set('select', slot.hours);
+                $periodBlock.find('.time-minute').pickatime().pickatime('picker').set('select', slot.minute);
+                $periodBlock.find('.time-second').pickatime().pickatime('picker').set('select', slot.second);
+                break;
+            case 2:
+                var $periodBlock = $('.period-block.daily');
+                $periodBlock.find('.time-hour-minute').pickatime().pickatime('picker').set('select', [slot.hour, slot.minute]);
+                break;
+            case 3:
+                var $periodBlock = $('.period-block.every-x-days');
+                $periodBlock.find('.time-days').val(slot.days).trigger('change');
+                $periodBlock.find('.time-hour-minute').pickatime().pickatime('picker').set('select', [slot.hour, slot.minute]);
+                break;
+            case 4:
+                var $periodBlock = $('.period-block.weekly');
+                $periodBlock.find('.time-hour-minute').pickatime().pickatime('picker').set('select', [slot.hour, slot.minute]);
+
+                $('#weekdays-selector label').removeClass('active');
+                $('#weekdays-selector input[value="' + slot.dayOfWeek + '"]').parent().addClass('active');
+                break;
+            case 5:
+                var $periodBlock = $('.period-block.monthly');
+                $periodBlock.find('.time-hour-minute').pickatime().pickatime('picker').set('select', [slot.hour, slot.minute]);
+                $periodBlock.find('.time-day-of-month').pickatime().pickatime('picker').set('select', slot.dayOfMonth);
+                break;
+        }
+    });
+
+    $(document).on('click', '.event-actions .action-disable', function () {
+        var evId = parseInt($(this).closest('tr').find('td:first').text());
+        setEventEnabled(evId, false);
+    });
+
+    $(document).on('click', '.event-actions .action-enable', function () {
+        var evId = parseInt($(this).closest('tr').find('td:first').text());
+        setEventEnabled(evId, true);
+    });
+
+    $(document).on('click', '.cancel-edit-schedule', cancelEditSchedule);
 });
+
+function cancelEditSchedule() {
+    $('#evId').val('');
+    $('#events-list tbody tr').removeClass('bg-warning');
+    $('#add-event-header').text('Add event');
+    $('#schedule-mode .add-schedule').show();
+    $('#schedule-mode .save-schedule').hide();
+    $('#schedule-mode .cancel-edit-schedule').hide();
+    $('#schedule-mode-zones label').removeClass('active');
+    $('#schedule-mode-zones input[value="1"]').parent().addClass('active');
+    $('#periodicity').val(0).trigger('change');
+    $('#duration').val(5).trigger('change');
+    var $periodBlock = $('.period-block.hourly');
+    $periodBlock.find('.time-minute').pickatime().pickatime('picker').set('select', 0);
+    $periodBlock.find('.time-second').pickatime().pickatime('picker').set('select', 0);
+}
 
 function notify(text, type) {
     $.notify(text, { type: type, placement: { from: 'top', align: 'center' } });
+}
+
+function getSlotById(evId) {
+    var slot = null;
+    $.each(calendarEvents.slots, function (index, val) {
+        if (val.evId === evId) {
+            slot = val;
+        }
+    });
+
+    return slot;
+};
+
+function processGetEvents(data = null) {
+    //TODO: Only for test
+    var jsonObject = JSON.parse('{"command":"getEvents","data":{"total":25,"occupied":6,"slots":[{"evId":0,"duration":5,"zones":[1,2,4],"minute":10,"second":15,"periodicity":0},{"evId":1,"duration":60,"zones":[1,2],"hours":10,"minute":5,"second":15,"periodicity":1},{"evId":2,"duration":30,"zones":[1,4],"hour":2,"minute":30,"periodicity":2},{"evId":3,"duration":45,"zones":[1,3],"days":5,"hour":1,"minute":30,"periodicity":3},{"evId":4,"duration":10,"zones":[1,3],"dayOfWeek":4,"hour":0,"minute":15,"periodicity":4},{"evId":5,"duration":135,"zones":[1,3],"dayOfMonth":5,"hour":3,"minute":15,"periodicity":5}]}}');
+    console.log(jsonObject);
+    var command = jsonObject.command || null;
+    var data = jsonObject.data || null;
+    //TODO: Only for test
+    calendarEvents = data;
+    var $eventTableBody = $('#events-list tbody');
+    if (null !== calendarEvents) {
+        var slots = calendarEvents.slots;
+        $eventTableBody.empty();
+        var total = parseInt(calendarEvents.total);
+        var occupied = parseInt(calendarEvents.occupied);
+        var available = total - occupied;
+        var statisticText = `<b>${occupied}</b> slots out of <b>${total}</b> are occupied. <b>${available}</b> slots available for adding`;
+        $('#events-statistic').html(statisticText);
+
+        for (var i = 0; i < total; i++) {
+            var slot = getSlotById(i);
+            var enabled = parseInt(null !== slot ? slot.enabled : true);
+            enabled = isNaN(enabled) ? true : enabled;
+            var tr = '<tr><td colspan="5">Free slot</td></tr>';
+            var disableBtn = `<li role="presentation"><a class="action-disable" role="menuitem"><i class="fa fa-power-off"></i> Disable</a></li>`;
+            var enableBtn = `<li role="presentation"><a class="action-enable" role="menuitem"><i class="fa fa-play text-success"></i> Enable</a></li>`;
+            var enableDisableBtn = enabled ? disableBtn : enableBtn;
+
+            var actions = `<td class="event-actions">
+                <div class="dropdown">
+                <button class="btn btn-xs btn-default dropdown-toggle" type="button" data-toggle="dropdown">Actions <span class="caret"></span></button>
+                <ul class="dropdown-menu dropdown-menu-right" role="menu">
+                <li role="presentation">
+                <a class="action-edit" role="menuitem"><i class="fa fa-edit text-warning"></i> Edit</a>
+                </li>
+                <li role="presentation">
+                <a class="action-remove" role="menuitem"><i class="fa fa-trash text-danger"></i> Remove</a>
+                </li>
+                ${enableDisableBtn}
+                </ul>
+                </div>
+                </td>`;
+
+            if (null !== slot) {
+                var evId = slot.evId;
+                var duration = moment.duration(slot.duration, 'minutes').format('HH[h]:mm[m]');
+                var periodicity = periodicityList[slot.periodicity] || null;
+                var zones = slot.zones ? JSON.stringify(slot.zones) : '';
+                var color = enabled ? "#333" : "#999";
+
+                tr = `<tr data-enabled="${enabled}" style="color: ${color}">
+                    <td class="evId" data-evid="${evId}">${evId}</td>
+                    <td>${periodicity}</td>
+                    <td>${duration}</td>
+                    <td>${zones}</td>
+                    ${actions}
+                    </tr>`;
+            }
+
+            $eventTableBody.append(tr);
+        }
+    }
 }
 
 function WebSocketBegin(location) {
@@ -125,15 +296,12 @@ function WebSocketBegin(location) {
                         $('#manual-mode .start-irrigation-btn').show();
                         notify('Manual irrigation finished', 'success');
                         break;
-                    case 'addSchedule':
-                        notify('Schedule added', 'success');
-                        $('.add-schedule').show();
+                    case 'addOrEditSchedule':
+                        notify('Schedule added/updated', 'success');
+                        cancelEditSchedule();
                         break;
                     case 'getEvents':
-                        console.log("getEvents");
-                        break;
-                    case 'removeEvent':
-                        console.log("removeEvent");
+                        processGetEvents(data);
                         break;
                 }
             }
@@ -141,14 +309,13 @@ function WebSocketBegin(location) {
 
         ws.onclose = function () {
             $('#ws-n-conn').show();
-            setTimeout(function(){WebSocketBegin(websocketServerLocation)}, 5000);
+            setTimeout(function () { WebSocketBegin(websocketServerLocation) }, 5000);
         };
 
         ws.onerror = function (error) {
             if (error.message !== undefined) {
                 notify('WS error: ' + error.message, 'danger');
             }
-            setTimeout(function(){WebSocketBegin(websocketServerLocation)}, 5000);
         };
     } else {
         notify('WebSocket NOT supported by your Browser!', 'danger');
@@ -179,7 +346,9 @@ function manualIrrigation() {
 function getSchedule() {
     var $scheduleBlock = $('#schedule-mode');
     var eventSlot = {};
-    var checked = []
+    var checked = [];
+    var evId = parseInt($('#evId').val());
+
     $('#schedule-mode-zones input[type="checkbox"]').each(function () {
         if ($(this).parent().hasClass('active')) {
             checked.push(parseInt($(this).val()));
@@ -188,6 +357,11 @@ function getSchedule() {
 
     eventSlot.duration = parseInt($scheduleBlock.find('.duration').val());
     eventSlot.zones = checked;
+
+    // If edit event
+    if (!isNaN(evId)) {
+        eventSlot.evId = evId;
+    }
 
     switch (parseInt($('#periodicity').val())) {
         case 0:
@@ -352,7 +526,7 @@ function getExplanationForSchedule(scheduleObject) {
     return explanationString;
 }
 
-function addSchedule() {
+function addOrEditSchedule() {
     if ($('#schedule-mode-zones .btn-default.active').length === 0) {
         alert("Select minimum one zone!");
         $('#schedule-mode-zones input[type="checkbox"]:eq(0)').click();
@@ -363,7 +537,7 @@ function addSchedule() {
 
     if (confirm("Are you sure?")) {
         var command = {};
-        command.command = "addSchedule";
+        command.command = "addOrEditSchedule";
         command.data = eventSlot;
         console.log(command, JSON.stringify(command));
         //$('.add-schedule').hide();
@@ -399,6 +573,17 @@ function removeEvent(evId) {
     command.command = "removeEvent";
     command.data = {};
     command.data.evId = evId;
+
+    ws.send(JSON.stringify(command));
+}
+
+function setEventEnabled(evId, enabled = true) {
+    console.log(enabled);
+    var command = {};
+    command.command = "setEventEnabled";
+    command.data = {};
+    command.data.evId = evId;
+    command.data.enabled = enabled;
 
     ws.send(JSON.stringify(command));
 }

@@ -375,6 +375,37 @@ bool removeEvent(byte evId)
   return false;
 }
 
+bool setEventEnabled(byte evId, bool enabled)
+{
+  MyCalendar.setEnabled(evId, enabled);
+
+  char scheduleFileName[20];
+  sprintf(scheduleFileName, "/schedule_%d.json", evId);
+  File scheduleFile = SD.open(scheduleFileName, FILE_WRITE);
+  if (!scheduleFile)
+  {
+    Serial.println(F("Failed to open schedule file"));
+    return false;
+  }
+
+  StaticJsonBuffer<128> scheduleBuf;
+  JsonObject &schedule = scheduleBuf.parseObject(scheduleFile);
+  if (!schedule.success())
+  {
+    Serial.println("Failed to read file");
+    scheduleFile.close();
+    return false;
+  }
+
+  schedule["enabled"] = enabled;
+  schedule.printTo(scheduleFile);
+  scheduleFile.close();
+
+  sendEventsToWS();
+
+  return true;
+}
+
 void stopManualIrrigation()
 {
   removeEvent(0);
@@ -461,15 +492,29 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       {
         stopManualIrrigation();
       }
-      else if (command == "addSchedule")
+      else if (command == "addOrEditSchedule")
       {
-        Serial.println("addSchedule");
-
         int duration = root["data"]["duration"];
         struct Chronos::Zones _zones = getZonesFromJson(root["data"]["zones"]);
 
         byte periodicity = root["data"]["periodicity"];
+        JsonVariant eventId = root["data"]["evId"];
         byte evId = MyCalendar.numEvents() + 1;
+        if (eventId.success())
+        {
+          Serial.println("");
+          Serial.print("Edit schedule #");
+          Serial.println(evId);
+
+          evId = eventId.as<int>();
+          removeEvent(evId);
+        }
+        else
+        {
+          Serial.println("");
+          Serial.print("Add schedule");
+        }
+
         char scheduleFileName[20];
         sprintf(scheduleFileName, "/schedule_%d.json", evId);
         File scheduleFile = SD.open(scheduleFileName, FILE_WRITE);
@@ -555,6 +600,13 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
         }
         scheduleFile.close();
         ws.textAll(SCHEDULE_ADD);
+      }
+      else if (command == "setEventEnabled")
+      {
+        if (!setEventEnabled(root["data"]["evId"], root["data"]["enabled"]))
+        {
+          Serial.println("Error set event enabled");
+        }
       }
     }
   }
