@@ -44,4 +44,4 @@
 #define MANUAL_IRRIGATION_STATUS_TRUE "{\"command\":\"manualIrrigation\",\"status\":true}"
 #define MANUAL_IRRIGATION_STATUS_FALSE "{\"command\":\"manualIrrigation\",\"status\":false}"
 #define MANUAL_IRRIGATION_STOP "{\"command\":\"stopManualIrrigation\"}"
-#define SCHEDULE_ADD "{\"command\":\"addSchedule\"}"
+#define SCHEDULE_ADD_EDIT "{\"command\":\"addOrEditSchedule\"}"

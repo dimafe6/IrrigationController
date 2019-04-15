@@ -3,13 +3,18 @@ var ws;
 var weekNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thuesday", "Friday", "Saturday"];
 var periodicityList = { "-1": "Once", "0": "Hourly", "1": "Every X hours", "2": "Daily", "3": "Every X days", "4": "Weekly", "5": "Monthly" };
 var calendarEvents = [];
+var availableSlots;
 
 window.addEventListener('beforeunload', (event) => {
     ws.close();
 });
 
 $(document).ready(function () {
-    processGetEvents(); //TODO: only for test
+    setInterval(function () {
+        if ($('a[href="#dashboard"][aria-expanded="true"]').length && ws.readyState == 1) {
+            getSysInfo();
+        }
+    }, 5000);
 
     moment.updateLocale('en', {
         week: {
@@ -212,12 +217,6 @@ function getSlotById(evId) {
 };
 
 function processGetEvents(data = null) {
-    //TODO: Only for test
-    var jsonObject = JSON.parse('{"command":"getEvents","data":{"total":25,"occupied":6,"slots":[{"evId":0,"duration":5,"zones":[1,2,4],"minute":10,"second":15,"periodicity":0},{"evId":1,"duration":60,"zones":[1,2],"hours":10,"minute":5,"second":15,"periodicity":1},{"evId":2,"duration":30,"zones":[1,4],"hour":2,"minute":30,"periodicity":2},{"evId":3,"duration":45,"zones":[1,3],"days":5,"hour":1,"minute":30,"periodicity":3},{"evId":4,"duration":10,"zones":[1,3],"dayOfWeek":4,"hour":0,"minute":15,"periodicity":4},{"evId":5,"duration":135,"zones":[1,3],"dayOfMonth":5,"hour":3,"minute":15,"periodicity":5}]}}');
-    console.log(jsonObject);
-    var command = jsonObject.command || null;
-    var data = jsonObject.data || null;
-    //TODO: Only for test
     calendarEvents = data;
     var $eventTableBody = $('#events-list tbody');
     if (null !== calendarEvents) {
@@ -229,9 +228,13 @@ function processGetEvents(data = null) {
         var statisticText = `<b>${occupied}</b> slots out of <b>${total}</b> are occupied. <b>${available}</b> slots available for adding`;
         $('#events-statistic').html(statisticText);
 
-        for (var i = 0; i < total; i++) {
+        availableSlots = available;
+
+        $('#schedule-mode .add-schedule').prop('disabled', availableSlots <= 0);
+
+        for (var i = 1; i <= total; i++) {
             var slot = getSlotById(i);
-            var enabled = parseInt(null !== slot ? slot.enabled : true);
+            var enabled = null !== slot ? slot.enabled : true;
             enabled = isNaN(enabled) ? true : enabled;
             var tr = '<tr><td colspan="5">Free slot</td></tr>';
             var disableBtn = `<li role="presentation"><a class="action-disable" role="menuitem"><i class="fa fa-power-off"></i> Disable</a></li>`;
@@ -280,6 +283,8 @@ function WebSocketBegin(location) {
         ws.onopen = function () {
             notify('WS connected', 'success');
             $('#ws-n-conn').hide();
+            getEvents();
+            getSysInfo();
         };
 
         ws.onmessage = function (evt) {
@@ -305,6 +310,11 @@ function WebSocketBegin(location) {
                         break;
                     case 'getEvents':
                         processGetEvents(data);
+                        break;
+                    case 'getSysInfo':
+                        //TODO: only for test
+                        var test = JSON.parse('{"command":"getSysInfo","data":{"WiFi":{"SSID":"dimaPC","power":"19.5dBm","RSSI":-48,"localIP":"10.42.0.221"},"heap":{"total":322248,"free":205672,"min":181500,"maxAlloc":113792},"SD":{"type":"SDHC","total":"3809MB","used":"4MB"},"SPIFFS":{"total":"1342KB","used":"51KB"}}}');
+                        console.log(data);
                         break;
                 }
             }
@@ -530,6 +540,11 @@ function getExplanationForSchedule(scheduleObject) {
 }
 
 function addOrEditSchedule() {
+    if (availableSlots <= 0) {
+        alert("There are no available slots");
+        return;
+    }
+
     if ($('#schedule-mode-zones .btn-default.active').length === 0) {
         alert("Select minimum one zone!");
         $('#schedule-mode-zones input[type="checkbox"]:eq(0)').click();
@@ -581,12 +596,18 @@ function removeEvent(evId) {
 }
 
 function setEventEnabled(evId, enabled = true) {
-    console.log(enabled);
     var command = {};
     command.command = "setEventEnabled";
     command.data = {};
     command.data.evId = evId;
     command.data.enabled = enabled;
+
+    ws.send(JSON.stringify(command));
+}
+
+function getSysInfo() {
+    var command = {};
+    command.command = "getSysInfo";
 
     ws.send(JSON.stringify(command));
 }

@@ -315,10 +315,105 @@ void sendEventsToWS()
   Serial.println("Response schedule:");
   String json;
   json.reserve(2048);
-  data["total"] = CALENDAR_MAX_NUM_EVENTS;
-  data["occupied"] = MyCalendar.numEvents();
+  data["total"] = CALENDAR_MAX_NUM_EVENTS - 1;
+  data["occupied"] = MyCalendar.numRecurring();
   response.printTo(json);
 
+  ws.textAll(json);
+}
+
+void sendSysInfoToWS()
+{
+  DynamicJsonBuffer sysInfoBuf(512);
+  JsonObject &sysInfo = sysInfoBuf.createObject();
+  sysInfo["command"] = "getSysInfo";
+
+  JsonObject &data = sysInfo.createNestedObject("data");
+  JsonObject &wifi = data.createNestedObject("WiFi");
+  wifi["SSID"] = WiFi.SSID();
+  wifi_power_t power = WiFi.getTxPower();
+  switch (power)
+  {
+  case WIFI_POWER_19_5dBm:
+    wifi["power"] = "19.5dBm";
+    break;
+  case WIFI_POWER_19dBm:
+    wifi["power"] = "19dBm";
+    break;
+  case WIFI_POWER_18_5dBm:
+    wifi["power"] = "18.5dBm";
+    break;
+  case WIFI_POWER_17dBm:
+    wifi["power"] = "17dBm";
+    break;
+  case WIFI_POWER_15dBm:
+    wifi["power"] = "15dBm";
+    break;
+  case WIFI_POWER_13dBm:
+    wifi["power"] = "13dBm";
+    break;
+  case WIFI_POWER_11dBm:
+    wifi["power"] = "11dBm";
+    break;
+  case WIFI_POWER_8_5dBm:
+    wifi["power"] = "8.5dBm";
+    break;
+  case WIFI_POWER_7dBm:
+    wifi["power"] = "7dBm";
+    break;
+  case WIFI_POWER_5dBm:
+    wifi["power"] = "5dBm";
+    break;
+  case WIFI_POWER_2dBm:
+    wifi["power"] = "2dBm";
+    break;
+  case WIFI_POWER_MINUS_1dBm:
+    wifi["power"] = "-1dBm";
+    break;
+  }
+  wifi["RSSI"] = WiFi.RSSI();
+  wifi["localIP"] = WiFi.localIP().toString();
+
+  JsonObject &heap = data.createNestedObject("heap");
+  heap["total"] = ESP.getHeapSize();
+  heap["free"] = ESP.getFreeHeap();
+  heap["min"] = ESP.getMinFreeHeap();
+  heap["maxAlloc"] = ESP.getMaxAllocHeap();
+
+  JsonObject &sdInfo = data.createNestedObject("SD");
+  uint8_t cardType = SD.cardType();
+  switch (cardType)
+  {
+  case CARD_NONE:
+    sdInfo["type"] = "None";
+    break;
+  case CARD_MMC:
+    sdInfo["type"] = "MMC";
+    break;
+  case CARD_SD:
+    sdInfo["type"] = "SD";
+    break;
+  case CARD_SDHC:
+    sdInfo["type"] = "SDHC";
+    break;
+  }
+
+  char size[20];
+  sprintf(size, "%lluMB", SD.totalBytes() / (1024 * 1024));
+  sdInfo["total"] = size;
+  sprintf(size, "%lluMB", SD.usedBytes() / (1024 * 1024));
+  sdInfo["used"] = size;
+
+  JsonObject &spiffsInfo = data.createNestedObject("SPIFFS");
+  sprintf(size, "%dKB", SPIFFS.totalBytes() / 1024);
+  spiffsInfo["total"] = size;
+  sprintf(size, "%dKB", SPIFFS.usedBytes() / 1024);
+  spiffsInfo["used"] = size;
+
+  String json;
+  json.reserve(512);
+
+  sysInfo.printTo(json);
   ws.textAll(json);
 }
 
@@ -358,8 +453,27 @@ bool removeEvent(byte evId)
     if (SD.remove(scheduleFileName))
     {
       Serial.println("File deleted");
-      loadCalendarFromSD();
-
+      uint8_t numEvents = MyCalendar.numEvents();
+      if (evId <= numEvents)
+      {
+        Serial.println("Files reordering...");
+        for (uint8_t i = evId; i <= numEvents; i++)
+        {
+          char newFilename[20];
+          char oldFilename[20];
+          sprintf(oldFilename, "/schedule_%d.json", i + 1);
+          sprintf(newFilename, "/schedule_%d.json", i);
+          Serial.println("Rename from: ");
+          Serial.println(oldFilename);
+          Serial.println("Rename to: ");
+          Serial.println(newFilename);
+          if (SD.exists(oldFilename))
+          {
+            SD.rename(oldFilename, newFilename);
+          }
+        }
+        Serial.println("Reordering finished");
+      }
       return true;
     }
     else
@@ -370,8 +484,6 @@ bool removeEvent(byte evId)
     }
   }
 
-  sendEventsToWS();
-
   return false;
 }
 
@@ -381,27 +493,27 @@ bool setEventEnabled(byte evId, bool enabled)
 
   char scheduleFileName[20];
   sprintf(scheduleFileName, "/schedule_%d.json", evId);
-  File scheduleFile = SD.open(scheduleFileName, FILE_WRITE);
+  File scheduleFile = SD.open(scheduleFileName, FILE_READ);
   if (!scheduleFile)
   {
     Serial.println(F("Failed to open schedule file"));
     return false;
   }
 
-  StaticJsonBuffer<128> scheduleBuf;
+  DynamicJsonBuffer scheduleBuf(512);
   JsonObject &schedule = scheduleBuf.parseObject(scheduleFile);
+  scheduleFile.close();
+
   if (!schedule.success())
   {
     Serial.println("Failed to read file");
-    scheduleFile.close();
     return false;
   }
 
+  scheduleFile = SD.open(scheduleFileName, FILE_WRITE);
   schedule["enabled"] = enabled;
   schedule.printTo(scheduleFile);
   scheduleFile.close();
-
-  sendEventsToWS();
 
   return true;
 }
@@ -409,6 +521,7 @@ bool setEventEnabled(byte evId, bool enabled)
 void stopManualIrrigation()
 {
   removeEvent(0);
+  loadCalendarFromSD();
   ws.textAll(MANUAL_IRRIGATION_STOP);
 }
 
@@ -458,6 +571,8 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       else if (command == "removeEvent")
       {
         removeEvent(root["data"]["evId"]);
+        loadCalendarFromSD();
+        sendEventsToWS();
       }
       else if (command == "manualIrrigation")
       {
@@ -494,6 +609,12 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       }
       else if (command == "addOrEditSchedule")
       {
+        // Slot 0 is reserved for manual irrigation
+        if (MyCalendar.numEvents() >= CALENDAR_MAX_NUM_EVENTS - 1)
+        {
+          return;
+        }
+
         int duration = root["data"]["duration"];
         struct Chronos::Zones _zones = getZonesFromJson(root["data"]["zones"]);
 
@@ -502,17 +623,21 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
         byte evId = MyCalendar.numEvents() + 1;
         if (eventId.success())
         {
+          evId = eventId.as<int>();
+
           Serial.println("");
           Serial.print("Edit schedule #");
           Serial.println(evId);
 
-          evId = eventId.as<int>();
+          root["data"]["enabled"] = MyCalendar.isEnabled(evId);
+
           removeEvent(evId);
         }
         else
         {
           Serial.println("");
           Serial.print("Add schedule");
+          root["data"]["enabled"] = true; //New event always enabled
         }
 
         char scheduleFileName[20];
@@ -536,6 +661,11 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
           {
             root["data"].printTo(scheduleFile);
           }
+          else
+          {
+            scheduleFile.close();
+            SD.remove(scheduleFileName);
+          }
         }
         break;
         case Periodicity::EVERY_X_HOUR:
@@ -548,6 +678,11 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
           {
             root["data"].printTo(scheduleFile);
           }
+          else
+          {
+            scheduleFile.close();
+            SD.remove(scheduleFileName);
+          }
         }
         break;
         case Periodicity::DAILY:
@@ -558,6 +693,11 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
           if (MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Daily(hour, minute), Chronos::Span::Minutes(duration), _zones)))
           {
             root["data"].printTo(scheduleFile);
+          }
+          else
+          {
+            scheduleFile.close();
+            SD.remove(scheduleFileName);
           }
         }
         break;
@@ -571,6 +711,11 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
           {
             root["data"].printTo(scheduleFile);
           }
+          else
+          {
+            scheduleFile.close();
+            SD.remove(scheduleFileName);
+          }
         }
         break;
         case Periodicity::WEEKLY:
@@ -582,6 +727,11 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
           if (MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Weekly(dayOfWeek, hour, minute), Chronos::Span::Minutes(duration), _zones)))
           {
             root["data"].printTo(scheduleFile);
+          }
+          else
+          {
+            scheduleFile.close();
+            SD.remove(scheduleFileName);
           }
         }
         break;
@@ -595,11 +745,23 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
           {
             root["data"].printTo(scheduleFile);
           }
+          else
+          {
+            scheduleFile.close();
+            SD.remove(scheduleFileName);
+          }
         }
         break;
         }
         scheduleFile.close();
-        ws.textAll(SCHEDULE_ADD);
+
+        // If edit event then need update from SD
+        if (eventId.success())
+        {
+          loadCalendarFromSD();
+        }
+        sendEventsToWS();
+        ws.textAll(SCHEDULE_ADD_EDIT);
       }
       else if (command == "setEventEnabled")
       {
@@ -607,6 +769,12 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
         {
           Serial.println("Error set event enabled");
         }
+        //No need to update from SD
+        sendEventsToWS();
+      }
+      else if (command == "getSysInfo")
+      {
+        sendSysInfoToWS();
       }
     }
   }
@@ -694,6 +862,21 @@ void updateFromFS(fs::FS &fs)
     delay(500);
     ESP.restart();
   }
+}
+
+void initWiFi()
+{
+  WiFi.persistent(true);
+  WiFi.setAutoConnect(true);
+  WiFi.setAutoReconnect(true);
+
+  WiFi.onEvent(WiFiEvent);
+  WiFi.softAP("IrrigationController", SECRET_WEBSERVER_PASS);
+
+  Serial.println("");
+  Serial.println("Connecting to WIFI");
+  WiFi.begin();
+  WiFi.setSleep(false);
 }
 
 void initSD()
@@ -793,11 +976,6 @@ void initRtc()
   //MyCalendar.add(Chronos::Event(CALENDAR_ZONE_1, Chronos::Mark::EveryXDays(2, 15, 0), Chronos::Span::Seconds(10)));
   //MyCalendar.add(Chronos::Event(CALENDAR_ZONE_1, Chronos::Mark::EveryXHours(5, 30, 0), Chronos::Span::Seconds(10)));
   //MyCalendar.add(Chronos::Event(CALENDAR_ZONE_1, Chronos::Mark::Weekly(Chronos::Weekday::Friday, 2, 0), Chronos::Span::Seconds(10)));
-
-  Serial.println("");
-  Serial.print("Free heap: ");
-  Serial.print(ESP.getFreeHeap());
-  Serial.println("");
 }
 
 static time_t getTime()
@@ -811,7 +989,7 @@ void checkCalendar()
   {
     calendarLastCheck = millis();
 
-    Chronos::Event::Occurrence occurrenceList1[3];
+    /*Chronos::Event::Occurrence occurrenceList1[3];
     int numMon = MyCalendar.listNext(3, occurrenceList1, Chronos::DateTime::now());
     if (numMon)
     {
@@ -833,7 +1011,7 @@ void checkCalendar()
 
         Serial.println("");
       }
-    }
+    }*/
 
     Chronos::Event::Occurrence occurrenceList[CALENDAR_OCCURRENCES_LIST_SIZE];
     int numOngoing = MyCalendar.listOngoing(CALENDAR_OCCURRENCES_LIST_SIZE, occurrenceList, Chronos::DateTime::now());
@@ -981,21 +1159,6 @@ void sendWeatherDataToThingSpeak()
       Serial.println("Problem updating channel");
     }
   }
-}
-
-void initWiFi()
-{
-  WiFi.persistent(true);
-  WiFi.setAutoConnect(true);
-  WiFi.setAutoReconnect(true);
-
-  WiFi.onEvent(WiFiEvent);
-  WiFi.softAP("IrrigationController", SECRET_WEBSERVER_PASS);
-
-  Serial.println("");
-  Serial.println("Connecting to WIFI");
-  WiFi.begin();
-  WiFi.setSleep(false);
 }
 
 void WiFiEvent(WiFiEvent_t event)
