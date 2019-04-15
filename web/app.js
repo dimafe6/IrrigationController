@@ -114,6 +114,9 @@ $(document).ready(function () {
         cancelEditSchedule();
 
         $('#evId').val(evId);
+        $('html, body').animate({
+            scrollTop: $("#add-event-header").offset().top
+        }, 500);
         $('#events-list tbody td.evId[data-evid="' + evId + '"]').closest('tr').addClass('bg-warning');
         $('#add-event-header').text('Edit event #' + evId);
         $('#schedule-mode .add-schedule').hide();
@@ -126,7 +129,7 @@ $(document).ready(function () {
         });
 
         $('#periodicity').val(slot.periodicity).trigger('change');
-        $('#duration').val(slot.duration).trigger('change');
+        $('#schedule-mode .duration').val(slot.duration).trigger('change');
 
         switch (slot.periodicity) {
             case 0:
