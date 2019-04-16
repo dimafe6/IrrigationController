@@ -128,6 +128,13 @@ void initWebServer()
       }
     } });
 
+  server.on("/reboot", HTTP_GET, [](AsyncWebServerRequest *request) {
+    AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "OK");
+    response->addHeader("Connection", "close");
+    request->send(response);
+    ESP.restart();
+  });
+
   server.begin();
 }
 

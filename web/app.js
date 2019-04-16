@@ -63,6 +63,12 @@ $(document).ready(function () {
         $(this).pickatime('picker').set('select', 0);
     });
 
+    $('a[data-toggle="tab"]').click(function() {
+        if($('.navbar-collapse.collapse.in').length) {
+            $('button.navbar-toggle').click();
+        }
+    });
+
     $('#periodicity').change(function () {
         switch (parseInt($(this).val())) {
             case 0:
