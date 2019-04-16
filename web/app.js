@@ -4,6 +4,7 @@ var weekNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thuesday", "Friday
 var periodicityList = { "-1": "Once", "0": "Hourly", "1": "Every X hours", "2": "Daily", "3": "Every X days", "4": "Weekly", "5": "Monthly" };
 var calendarEvents = [];
 var availableSlots;
+var calendar;
 
 window.addEventListener('beforeunload', (event) => {
     ws.close();
@@ -24,6 +25,88 @@ $(document).ready(function () {
     });
 
     WebSocketBegin(websocketServerLocation);
+
+    calendar = $('#calendar').fullCalendar({
+        slotDuration: "00:15:00",
+        header: { center: 'month,agendaWeek,agenda' },
+        defaultView: 'agendaWeek',
+        displayEventTime: true,
+        displayEventEnd: true,
+        allDaySlot: false,
+        height: "auto",
+        validRange: {
+            start: moment().format("YYYY-MM-DD")
+        },
+        events: function (start, end, timezone, callback) {
+            var processHours = function (currDate, slot, hours) {
+                currDate.minute(slot.minute).second(slot.second);
+                if (currDate < moment()) {
+                    currDate.add(hours, 'h');
+                }
+
+                while (currDate >= start && currDate < end) {
+                    var endDate = moment(currDate);
+                    endDate.add(slot.duration, 'm');
+                    var startDate = moment(currDate);
+                    events.push({
+                        title: slot.evId,
+                        start: startDate,
+                        end: endDate
+                    });
+
+                    currDate.add(hours, 'h');
+                }
+            };
+
+            var events = [];
+
+            if (calendarEvents.slots !== undefined) {
+                $.each(calendarEvents.slots, function (index, slot) {
+                    var currDate = moment(start);
+                    if (start < moment()) {
+                        currDate = moment();
+                    }
+
+                    switch (slot.periodicity) {
+                        case 0:
+                            processHours(currDate, slot, 1);
+                            break;
+                        case 1:
+                            processHours(currDate, slot, slot.hours);
+                            break;
+                        case 2:
+                            var interval = moment(currDate).recur(start, end).every(1).day();
+                            var occurences = interval.all();
+                            for (var i = 0; i < occurences.length; i++) {
+                                occurences[i].minute(slot.minute).hour(slot.hour);
+                                var startDate = moment(occurences[i]);
+                                var endDate = moment(startDate);
+                                endDate.add(slot.duration, 'm');
+                                events.push({
+                                    title: slot.evId,
+                                    start: startDate,
+                                    end: endDate
+                                });
+                            };
+                            console.log(events);
+                            
+                            break;
+                        case 3:
+
+                            break;
+                        case 4:
+
+                            break;
+                        case 5:
+
+                            break;
+                    }
+                });
+
+                callback(events);
+            }
+        }
+    })
 
     $('.time-minute, .time-second').pickatime({
         format: 'i',
@@ -63,8 +146,8 @@ $(document).ready(function () {
         $(this).pickatime('picker').set('select', 0);
     });
 
-    $('a[data-toggle="tab"]').click(function() {
-        if($('.navbar-collapse.collapse.in').length) {
+    $('a[data-toggle="tab"]').click(function () {
+        if ($('.navbar-collapse.collapse.in').length) {
             $('button.navbar-toggle').click();
         }
     });
@@ -222,10 +305,14 @@ function getSlotById(evId) {
     return slot;
 };
 
-function processGetEvents(data = null) {
-    calendarEvents = data;
+function processSlots(data = null) {
+    //calendarEvents = data;
+    //TODO: only for test
+    calendarEvents = data || JSON.parse('{"slots":[{"duration":30,"zones":[1],"minute":30,"hour":13,"periodicity":2,"enabled":true,"evId":2}],"total":24,"occupied":3}');
     var $eventTableBody = $('#events-list tbody');
     if (null !== calendarEvents) {
+        $('#calendar').fullCalendar('refetchEvents');
+
         var slots = calendarEvents.slots;
         $eventTableBody.empty();
         var total = parseInt(calendarEvents.total);
@@ -289,7 +376,7 @@ function WebSocketBegin(location) {
         ws.onopen = function () {
             notify('WS connected', 'success');
             $('#ws-n-conn').hide();
-            getEvents();
+            getSlots();
             getSysInfo();
         };
 
@@ -314,8 +401,8 @@ function WebSocketBegin(location) {
                         notify('Schedule added/updated', 'success');
                         cancelEditSchedule();
                         break;
-                    case 'getEvents':
-                        processGetEvents(data);
+                    case 'getSlots':
+                        processSlots(data);
                         break;
                     case 'getSysInfo':
                         //TODO: only for test
@@ -585,9 +672,9 @@ function saveWifiConfig() {
     ws.send(JSON.stringify(command));
 }
 
-function getEvents() {
+function getSlots() {
     var command = {};
-    command.command = "getEvents";
+    command.command = "getSlots";
 
     ws.send(JSON.stringify(command));
 }

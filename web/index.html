@@ -12,6 +12,7 @@
         href="https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.6.3/compressed/themes/default.css" />
     <link rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.6.3/compressed/themes/default.time.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.10.0/fullcalendar.min.css" />
     <style type="text/css">
         body {
             background-color: #ddd
@@ -104,10 +105,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.6.3/compressed/picker.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.6.3/compressed/picker.time.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-recur/1.0.7/moment-recur.min.js"></script>
     <script
         src="https://cdnjs.cloudflare.com/ajax/libs/moment-duration-format/2.2.2/moment-duration-format.min.js"></script>
     <script
         src="https://cdnjs.cloudflare.com/ajax/libs/mouse0270-bootstrap-notify/3.1.7/bootstrap-notify.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.10.0/fullcalendar.min.js"></script>
     <script type="text/javascript" src="app.js"></script>
 </head>
 
@@ -138,14 +141,14 @@
                             Manual mode
                         </a>
                     </li>
-                    <li class="active">
+                    <li>
                         <a href="#schedule-mode" data-toggle="tab">
                             <span class="fa fa-calendar-plus"></span>
                             Schedule
                         </a>
                     </li>
-                    <li>
-                        <a href="#calendar" data-toggle="tab">
+                    <li class="active">
+                        <a href="#calendar-page" data-toggle="tab">
                             <span class="fa fa-calendar-alt"></span>
                             Calendar
                         </a>
@@ -238,7 +241,7 @@
                             </button>
                         </div>
                     </div>
-                    <div class="tab-pane active" id="schedule-mode">
+                    <div class="tab-pane" id="schedule-mode">
                         <div class="page-header text-center">
                             <h2>Schedule</h2>
                         </div>
@@ -460,9 +463,12 @@
                             </div>
                         </div>
                     </div>
-                    <div class="tab-pane active" id="calendar">
+                    <div class="tab-pane active" id="calendar-page">
                         <div class="page-header text-center">
                             <h2>Calendar</h2>
+                        </div>
+                        <div class="col-md-12">
+                            <div id="calendar"></div>
                         </div>
                     </div>
                     <div class="tab-pane" id="config">

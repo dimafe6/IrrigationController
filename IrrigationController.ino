@@ -275,7 +275,7 @@ void loadCalendarFromSD()
   file.close();
 }
 
-void sendEventsToWS()
+void sendSlotsToWS()
 {
   File root = SD.open("/");
   if (!root)
@@ -290,9 +290,9 @@ void sendEventsToWS()
   }
 
   DynamicJsonBuffer jsonBuffer(128);
-  DynamicJsonBuffer responseBuffer(2048);
-  JsonObject &response = jsonBuffer.createObject();
-  response["command"] = "getEvents";
+  DynamicJsonBuffer responseBuffer(1024);
+  JsonObject &response = responseBuffer.createObject();
+  response["command"] = "getSlots";
   JsonObject &data = response.createNestedObject("data");
   JsonArray &slots = data.createNestedArray("slots");
 
@@ -571,15 +571,15 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
         WiFi.begin(ssid, password);
         WiFi.reconnect();
       }
-      else if (command == "getEvents")
+      else if (command == "getSlots")
       {
-        sendEventsToWS();
+        sendSlotsToWS();
       }
       else if (command == "removeEvent")
       {
         removeEvent(root["data"]["evId"]);
         loadCalendarFromSD();
-        sendEventsToWS();
+        sendSlotsToWS();
       }
       else if (command == "manualIrrigation")
       {
@@ -767,7 +767,7 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
         {
           loadCalendarFromSD();
         }
-        sendEventsToWS();
+        sendSlotsToWS();
         ws.textAll(SCHEDULE_ADD_EDIT);
       }
       else if (command == "setEventEnabled")
@@ -777,7 +777,7 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
           Serial.println("Error set event enabled");
         }
         //No need to update from SD
-        sendEventsToWS();
+        sendSlotsToWS();
       }
       else if (command == "getSysInfo")
       {
