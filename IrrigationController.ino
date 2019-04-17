@@ -140,7 +140,7 @@ void initWebServer()
 
 void loadCalendarFromSD()
 {
-  DynamicJsonBuffer jsonBuffer(2048);
+  DynamicJsonBuffer jsonBuffer(5000);
   File scheduleFile;
 
   if (!SD.exists(SCHEDULE_FILE_NAME))
@@ -184,12 +184,12 @@ void sendSlotsToWS()
   }
 
   //Read schedule to object
-  DynamicJsonBuffer jsonBuffer(2048);
+  DynamicJsonBuffer jsonBuffer(5000);
   JsonArray &schedule = jsonBuffer.parseArray(scheduleFile);
 
   scheduleFile.close();
 
-  DynamicJsonBuffer responseBuffer(1024);
+  DynamicJsonBuffer responseBuffer(5000);
   JsonObject &response = responseBuffer.createObject();
   response["command"] = "getSlots";
   JsonObject &data = response.createNestedObject("data");
@@ -199,11 +199,6 @@ void sendSlotsToWS()
   {
     slots.add(eventData);
   }
-
-  Serial.println("Slots count from SD:");
-  Serial.println(slots.size());
-  Serial.println("Slots count from memory:");
-  Serial.println(MyCalendar.numEvents());
 
   String json;
   json.reserve(2048);
@@ -296,12 +291,12 @@ Chronos::Zones getZonesFromJson(JsonArray &zones)
   return _zones;
 }
 
-bool removeEvent(byte evId)
+bool removeEvent(int evId)
 {
-  DynamicJsonBuffer jsonBuffer(3000);
+  DynamicJsonBuffer jsonBuffer(5000);
   File scheduleFile;
   String scheduleString = "[]";
-  scheduleString.reserve(3000);
+  scheduleString.reserve(5000);
 
   //If schedule exists then open it
   if (SD.exists(SCHEDULE_FILE_NAME))
@@ -665,14 +660,6 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
         sendSysInfoToWS();
       }
     }
-  }
-}
-
-void removeScheduleForAllZones()
-{
-  for (byte zone = 1; zone < 5; zone++)
-  {
-    MyCalendar.removeAll(zone);
   }
 }
 

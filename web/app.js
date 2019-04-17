@@ -26,9 +26,16 @@ $(document).ready(function () {
 
     WebSocketBegin(websocketServerLocation);
 
+    $('a[href="#calendar-page"]').click(function () {
+        setTimeout(function () {
+            $('#calendar').fullCalendar('refetchEvents');
+            $('#calendar').fullCalendar('rerenderEvents');
+        },
+            100);
+    });
+
     calendar = $('#calendar').fullCalendar({
         slotDuration: "00:15:00",
-        header: { center: 'month,agendaWeek,agenda' },
         defaultView: 'agendaWeek',
         displayEventTime: true,
         displayEventEnd: true,
@@ -38,66 +45,81 @@ $(document).ready(function () {
             start: moment().format("YYYY-MM-DD")
         },
         events: function (start, end, timezone, callback) {
-            var processHours = function (currDate, slot, hours) {
-                currDate.minute(slot.minute).second(slot.second);
-                if (currDate < moment()) {
-                    currDate.add(hours, 'h');
-                }
-
-                while (currDate >= start && currDate < end) {
-                    var endDate = moment(currDate);
-                    endDate.add(slot.duration, 'm');
-                    var startDate = moment(currDate);
-                    events.push({
-                        start: startDate,
-                        end: endDate
-                    });
-
-                    currDate.add(hours, 'h');
-                }
-            };
-
             var events = [];
 
             if (calendarEvents.slots !== undefined) {
                 $.each(calendarEvents.slots, function (index, slot) {
-                    var currDate = moment(start);
-                    if (start < moment()) {
-                        currDate = moment();
-                    }
+                    if (slot.enabled) {
+                        var currDate = moment(start);
+                        if (start < moment()) {
+                            currDate = moment();
+                        }
 
-                    switch (slot.periodicity) {
-                        case 0:
-                            processHours(currDate, slot, 1);
-                            break;
-                        case 1:
-                            processHours(currDate, slot, slot.hours);
-                            break;
-                        case 2:
-                            var interval = moment(currDate).recur(start, end).every(1).day();
-                            var occurences = interval.all();
-                            for (var i = 0; i < occurences.length; i++) {
-                                occurences[i].minute(slot.minute).hour(slot.hour);
-                                var startDate = moment(occurences[i]);
-                                var endDate = moment(startDate);
-                                endDate.add(slot.duration, 'm');
-                                events.push({
-                                    start: startDate,
-                                    end: endDate
-                                });
-                            };
-                            console.log(events);
-                            
-                            break;
-                        case 3:
+                        switch (slot.periodicity) {
+                            case 0:
+                                currDate.minute(slot.minute).second(slot.second);
+                                if (currDate < moment()) {
+                                    currDate.add(1, 'h');
+                                }
+                                while (currDate >= start && currDate < end) {
+                                    var endDate = moment(currDate);
+                                    endDate.add(slot.duration, 'm');
+                                    var startDate = moment(currDate);
+                                    events.push({
+                                        title: "Event",
+                                        start: startDate,
+                                        end: endDate
+                                    });
 
-                            break;
-                        case 4:
+                                    currDate.add(1, 'h');
+                                }
+                                break;
+                            case 1:
+                                currDate.minute(slot.minute).second(slot.second);
+                                if (currDate < moment()) {
+                                    currDate.add(slot.hours, 'h');
+                                }
+                                while (currDate >= start && currDate < end) {
+                                    var endDate = moment(currDate);
+                                    endDate.add(slot.duration, 'm');
+                                    var startDate = moment(currDate);
+                                    events.push({
+                                        title: "Event",
+                                        start: startDate,
+                                        end: endDate
+                                    });
 
-                            break;
-                        case 5:
+                                    currDate.add(slot.hours, 'h');
+                                }
+                                break;
+                            case 2:
+                                var interval = moment(currDate).recur(start, end).every(1).day();
+                                var occurences = interval.all();
+                                for (var i = 0; i < occurences.length; i++) {
+                                    occurences[i].minute(slot.minute).hour(slot.hour);
+                                    var startDate = moment(occurences[i]);
+                                    if (startDate < moment()) {
+                                        continue;
+                                    }
+                                    var endDate = moment(startDate);
+                                    endDate.add(slot.duration, 'm');
+                                    events.push({
+                                        title: "Event",
+                                        start: startDate,
+                                        end: endDate
+                                    });
+                                };
+                                break;
+                            case 3:
 
-                            break;
+                                break;
+                            case 4:
+
+                                break;
+                            case 5:
+
+                                break;
+                        }
                     }
                 });
 
@@ -289,7 +311,7 @@ function cancelEditSchedule() {
 }
 
 function notify(text, type) {
-    $.notify(text, { type: type, placement: { from: 'top', align: 'center' } });
+    $.notify(text, { type: type, placement: { from: 'top', align: 'right', delay: 2000 } });
 }
 
 function getSlotById(evId) {
@@ -301,6 +323,7 @@ function processSlots(data = null) {
     var $eventTableBody = $('#events-list tbody');
     if (null !== calendarEvents) {
         $('#calendar').fullCalendar('refetchEvents');
+        $('#calendar').fullCalendar('rerenderEvents');
 
         var slots = calendarEvents.slots;
         $eventTableBody.empty();
@@ -390,6 +413,7 @@ function WebSocketBegin(location) {
                         break;
                     case 'getSlots':
                         processSlots(data);
+                        $('.add-schedule').prop("disabled", !(availableSlots > 0));
                         break;
                     case 'getSysInfo':
                         //TODO: only for test
@@ -638,7 +662,7 @@ function addOrEditSchedule() {
         command.command = "addOrEditSchedule";
         command.data = eventSlot;
         console.log(command, JSON.stringify(command));
-        //$('.add-schedule').hide();
+        $('.add-schedule').prop("disabled", 1);
         ws.send(JSON.stringify(command));
     }
 }
