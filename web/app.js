@@ -200,7 +200,7 @@ $(document).ready(function () {
 
     $(document).on('click', '.event-actions .action-edit', function () {
         var evId = parseInt($(this).closest('tr').find('td:first').text());
-        var slot = getSlotById(evId);
+        var slot = calendarEvents[evId];
         if (null == slot) {
             return;
         }
@@ -294,17 +294,6 @@ function notify(text, type) {
     $.notify(text, { type: type, placement: { from: 'top', align: 'center' } });
 }
 
-function getSlotById(evId) {
-    var slot = null;
-    $.each(calendarEvents.slots, function (index, val) {
-        if (val.evId === evId) {
-            slot = val;
-        }
-    });
-
-    return slot;
-};
-
 function processSlots(data = null) {
     //calendarEvents = data;
     //TODO: only for test
@@ -325,8 +314,8 @@ function processSlots(data = null) {
 
         $('#schedule-mode .add-schedule').prop('disabled', availableSlots <= 0);
 
-        for (var i = 1; i <= total; i++) {
-            var slot = getSlotById(i);
+        for (var i = 0; i < total; i++) {
+            var slot = calendarEvents[i];
             var enabled = null !== slot ? slot.enabled : true;
             enabled = isNaN(enabled) ? true : enabled;
             var tr = '<tr><td colspan="5">Free slot</td></tr>';
@@ -350,14 +339,13 @@ function processSlots(data = null) {
                 </td>`;
 
             if (null !== slot) {
-                var evId = slot.evId;
                 var duration = moment.duration(slot.duration, 'minutes').format('HH[h]:mm[m]');
                 var periodicity = periodicityList[slot.periodicity] || null;
                 var zones = slot.zones ? JSON.stringify(slot.zones) : '';
                 var color = enabled ? "#333" : "#999";
 
                 tr = `<tr data-enabled="${enabled}" style="color: ${color}">
-                    <td class="evId" data-evid="${evId}">${evId}</td>
+                    <td class="evId" data-evid="${i}">${i}</td>
                     <td>${periodicity}</td>
                     <td>${duration}</td>
                     <td>${zones}</td>

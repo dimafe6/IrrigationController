@@ -132,7 +132,7 @@ void initWebServer()
     AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "OK");
     response->addHeader("Connection", "close");
     request->send(response);
-    ESP.restart();
+    shouldReboot = true;
   });
 
   server.begin();
@@ -140,186 +140,63 @@ void initWebServer()
 
 void loadCalendarFromSD()
 {
-  File root = SD.open("/");
-  if (!root)
+  DynamicJsonBuffer jsonBuffer(2048);
+  File scheduleFile;
+
+  if (!SD.exists(SCHEDULE_FILE_NAME))
   {
-    Serial.println("Failed to open directory");
-    return;
-  }
-  if (!root.isDirectory())
-  {
-    Serial.println("Not a directory");
     return;
   }
 
-  DynamicJsonBuffer jsonBuffer(128);
-
-  MyCalendar.clear();
-
-  File file = root.openNextFile();
-  while (file)
+  scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_READ);
+  if (!scheduleFile)
   {
-    String filename;
-    filename.reserve(20);
-    filename = String(file.name());
-    if (filename.substring(0, 9) == "/schedule")
-    {
-      int evId = filename.substring(filename.indexOf("_") + 1, filename.indexOf(".")).toInt();
-      JsonObject &schedule = jsonBuffer.parseObject(file);
-      if (schedule.success())
-      {
-        int duration = schedule["duration"];
-        int periodicity = schedule["periodicity"];
-        Serial.println(periodicity);
-        struct Chronos::Zones _zones = getZonesFromJson(schedule["zones"]);
-        switch (periodicity)
-        {
-        case Periodicity::ONCE:
-        {
-          uint32_t from = schedule["from"];
-          uint32_t to = schedule["to"];
-
-          if (MyCalendar.add(Chronos::Event(evId, Chronos::DateTime(from), Chronos::DateTime(to), _zones)))
-          {
-            Serial.println("");
-            Serial.println("Added event(Manual irrigation):");
-            schedule.printTo(Serial);
-          }
-        }
-        case Periodicity::HOURLY:
-        {
-          byte minute = schedule["minute"];
-          byte second = schedule["second"];
-
-          if (MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Hourly(minute, second), Chronos::Span::Minutes(duration), _zones)))
-          {
-            Serial.println("");
-            Serial.println("Added event:");
-            schedule.printTo(Serial);
-          }
-        }
-        break;
-        case Periodicity::EVERY_X_HOUR:
-        {
-          byte hours = schedule["hours"];
-          byte minute = schedule["minute"];
-          byte second = schedule["second"];
-          if (MyCalendar.add(Chronos::Event(evId, Chronos::Mark::EveryXHours(hours, minute, second), Chronos::Span::Minutes(duration), _zones)))
-          {
-            Serial.println("");
-            Serial.println("Added event:");
-            schedule.printTo(Serial);
-          }
-        }
-        break;
-        case Periodicity::DAILY:
-        {
-          byte hour = schedule["hour"];
-          byte minute = schedule["minute"];
-          if (MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Daily(hour, minute), Chronos::Span::Minutes(duration), _zones)))
-          {
-            Serial.println("");
-            Serial.println("Added event:");
-            schedule.printTo(Serial);
-          }
-        }
-        break;
-        case Periodicity::EVERY_X_DAYS:
-        {
-          byte days = schedule["days"];
-          byte hour = schedule["hour"];
-          byte minute = schedule["minute"];
-          if (MyCalendar.add(Chronos::Event(evId, Chronos::Mark::EveryXDays(days, hour, minute), Chronos::Span::Minutes(duration), _zones)))
-          {
-            Serial.println("");
-            Serial.println("Added event:");
-            schedule.printTo(Serial);
-          }
-        }
-        break;
-        case Periodicity::WEEKLY:
-        {
-          byte dayOfWeek = schedule["dayOfWeek"];
-          byte hour = schedule["hour"];
-          byte minute = schedule["minute"];
-          if (MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Weekly(dayOfWeek, hour, minute), Chronos::Span::Minutes(duration), _zones)))
-          {
-            Serial.println("");
-            Serial.println("Added event:");
-            schedule.printTo(Serial);
-          }
-        }
-        break;
-        case Periodicity::MONTHLY:
-        {
-          byte dayOfMonth = schedule["dayOfMonth"];
-          byte hour = schedule["hour"];
-          byte minute = schedule["minute"];
-          if (MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Monthly(dayOfMonth, hour, minute), Chronos::Span::Minutes(duration), _zones)))
-          {
-            Serial.println("");
-            Serial.println("Added event:");
-            schedule.printTo(Serial);
-          }
-        }
-        break;
-        }
-      }
-      else
-      {
-        Serial.println("Error parsing file");
-      }
-    }
-    file = root.openNextFile();
+    Serial.println(F("Failed to read schedule"));
+    return;
   }
-  file.close();
+
+  //Read schedule to object
+  JsonArray &schedule = jsonBuffer.parseArray(scheduleFile);
+  scheduleFile.close();
+
+  int evId = 0;
+  for (JsonObject &eventData : schedule)
+  {
+    addEventToCalendar(evId, eventData);
+  }
 }
 
 void sendSlotsToWS()
 {
-  File root = SD.open("/");
-  if (!root)
+  if (!SD.exists(SCHEDULE_FILE_NAME))
   {
-    Serial.println("Failed to open directory");
-    return;
-  }
-  if (!root.isDirectory())
-  {
-    Serial.println("Not a directory");
     return;
   }
 
-  DynamicJsonBuffer jsonBuffer(128);
+  File scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_READ);
+  if (!scheduleFile)
+  {
+    Serial.println(F("Failed to read schedule"));
+    return;
+  }
+
+  //Read schedule to object
+  DynamicJsonBuffer jsonBuffer(2048);
+  JsonArray &schedule = jsonBuffer.parseArray(scheduleFile);
+
+  scheduleFile.close();
+
   DynamicJsonBuffer responseBuffer(1024);
   JsonObject &response = responseBuffer.createObject();
   response["command"] = "getSlots";
   JsonObject &data = response.createNestedObject("data");
   JsonArray &slots = data.createNestedArray("slots");
 
-  File file = root.openNextFile();
-  while (file)
+  for (JsonObject &eventData : schedule)
   {
-
-    String filename;
-    filename.reserve(20);
-    filename = String(file.name());
-    if (filename.substring(0, 9) == "/schedule")
-    {
-      int evId = filename.substring(filename.indexOf("_") + 1, filename.indexOf(".")).toInt();
-      JsonObject &schedule = jsonBuffer.parseObject(file);
-      schedule["evId"] = evId;
-      if (schedule.success())
-      {
-        slots.add(schedule);
-      }
-    }
-
-    file = root.openNextFile();
+    slots.add(eventData);
   }
-  file.close();
 
-  Serial.println("");
-  Serial.println("Response schedule:");
   String json;
   json.reserve(2048);
   data["total"] = CALENDAR_MAX_NUM_EVENTS - 1;
@@ -453,7 +330,52 @@ Chronos::Zones getZonesFromJson(JsonArray &zones)
 
 bool removeEvent(byte evId)
 {
-  char scheduleFileName[20];
+  DynamicJsonBuffer jsonBuffer(3000);
+  File scheduleFile;
+  String scheduleString = "[]";
+  scheduleString.reserve(3000);
+
+  //If schedule exists then open it
+  if (SD.exists(SCHEDULE_FILE_NAME))
+  {
+    scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_READ);
+    if (!scheduleFile)
+    {
+      Serial.println(F("Failed to read schedule"));
+      return false;
+    }
+
+    scheduleString = scheduleFile.readString();
+    scheduleFile.close();
+
+    if (!scheduleString.length())
+    {
+      return false;
+    }
+  }
+
+  if (MyCalendar.remove(evId))
+  {
+
+    JsonArray &schedule = jsonBuffer.parseArray(scheduleString);
+    scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_WRITE);
+    if (!scheduleFile)
+    {
+      Serial.println(F("Failed to create schedule"));
+      return false;
+    }
+
+    JsonVariant element = schedule[evId];
+    if (element.success())
+    {
+      schedule.remove(evId);
+    }
+
+    schedule.printTo(scheduleFile);
+    scheduleFile.close();
+  }
+
+  /*char scheduleFileName[20];
   sprintf(scheduleFileName, "/schedule_%d.json", evId);
   if (MyCalendar.remove(evId))
   {
@@ -490,35 +412,56 @@ bool removeEvent(byte evId)
       return false;
     }
   }
-
+*/
   return false;
 }
 
 bool setEventEnabled(byte evId, bool enabled)
 {
+  DynamicJsonBuffer jsonBuffer(3000);
+  File scheduleFile;
+  String scheduleString = "[]";
+  scheduleString.reserve(3000);
+
+  //If schedule exists then open it
+  if (SD.exists(SCHEDULE_FILE_NAME))
+  {
+    scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_READ);
+    if (!scheduleFile)
+    {
+      Serial.println(F("Failed to read schedule"));
+      return false;
+    }
+
+    scheduleString = scheduleFile.readString();
+    scheduleFile.close();
+
+    if (!scheduleString.length())
+    {
+      return false;
+    }
+  }
+
   MyCalendar.setEnabled(evId, enabled);
 
-  char scheduleFileName[20];
-  sprintf(scheduleFileName, "/schedule_%d.json", evId);
-  File scheduleFile = SD.open(scheduleFileName, FILE_READ);
+  JsonArray &schedule = jsonBuffer.parseArray(scheduleString);
+  scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_WRITE);
   if (!scheduleFile)
   {
-    Serial.println(F("Failed to open schedule file"));
+    Serial.println(F("Failed to create schedule"));
     return false;
   }
 
-  DynamicJsonBuffer scheduleBuf(512);
-  JsonObject &schedule = scheduleBuf.parseObject(scheduleFile);
-  scheduleFile.close();
-
-  if (!schedule.success())
+  JsonVariant element = schedule[evId];
+  if (element.success())
   {
-    Serial.println("Failed to read file");
+    schedule[evId]["enabled"] = enabled;
+  }
+  else
+  {
     return false;
   }
 
-  scheduleFile = SD.open(scheduleFileName, FILE_WRITE);
-  schedule["enabled"] = enabled;
   schedule.printTo(scheduleFile);
   scheduleFile.close();
 
@@ -527,9 +470,174 @@ bool setEventEnabled(byte evId, bool enabled)
 
 void stopManualIrrigation()
 {
-  removeEvent(0);
+  /*removeEvent(0);
   loadCalendarFromSD();
-  ws.textAll(MANUAL_IRRIGATION_STOP);
+  ws.textAll(MANUAL_IRRIGATION_STOP);*/
+}
+
+void addOrEditSchedule(JsonObject &eventData)
+{
+  if (MyCalendar.numRecurring() >= CALENDAR_MAX_NUM_EVENTS - 1)
+  {
+    return;
+  }
+
+  JsonVariant eventId = eventData["evId"];
+  bool isEditEvent = eventId.success();
+  byte evId = MyCalendar.numRecurring();
+
+  if (isEditEvent)
+  {
+    evId = eventId.as<int>();
+
+    Serial.println("");
+    Serial.print("Edit schedule #");
+    Serial.println(evId);
+    eventData["enabled"] = MyCalendar.isEnabled(evId);
+    MyCalendar.removeAll(evId);
+  }
+  else
+  {
+    Serial.println("");
+    Serial.print("Add schedule");
+    eventData["enabled"] = true; //New event always enabled
+  }
+
+  DynamicJsonBuffer jsonBuffer(3000);
+  File scheduleFile;
+  String scheduleString = "[]";
+  scheduleString.reserve(3000);
+
+  //If schedule exists then open it
+  if (SD.exists(SCHEDULE_FILE_NAME))
+  {
+    scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_READ);
+    if (!scheduleFile)
+    {
+      Serial.println(F("Failed to read schedule"));
+      return;
+    }
+
+    scheduleString = scheduleFile.readString();
+    scheduleFile.close();
+  }
+
+  if (addEventToCalendar(evId, eventData))
+  {
+    JsonArray &schedule = jsonBuffer.parseArray(scheduleString);
+    scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_WRITE);
+    if (!scheduleFile)
+    {
+      Serial.println(F("Failed to create schedule"));
+      return;
+    }
+
+    JsonVariant element = schedule[evId];
+    if (element.success())
+    {
+      schedule.set(evId, eventData);
+    }
+    else
+    {
+      schedule.add(eventData);
+    }
+    schedule.printTo(scheduleFile);
+    scheduleFile.close();
+  }
+
+  // If edit event then need update from SD
+  if (isEditEvent)
+  {
+    loadCalendarFromSD();
+  }
+
+  sendSlotsToWS();
+
+  ws.textAll(SCHEDULE_ADD_EDIT);
+}
+
+bool addEventToCalendar(byte evId, JsonObject &eventData)
+{
+  int duration = eventData["duration"];
+  struct Chronos::Zones _zones = getZonesFromJson(eventData["zones"]);
+  byte periodicity = eventData["periodicity"];
+  bool eventSaved = false;
+  JsonVariant enabled = eventData["enabled"];
+  JsonVariant evIdElem = eventData["evId"];
+
+  if (!enabled.success())
+  {
+    eventData["enabled"] = true;
+  }
+
+  if (evIdElem.success())
+  {
+    eventData.remove("evId");
+  }
+
+  switch (periodicity)
+  {
+  case Periodicity::HOURLY:
+  {
+    Serial.println("HOURLY");
+    byte minute = eventData["minute"];
+    byte second = eventData["second"];
+
+    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Hourly(minute, second), Chronos::Span::Minutes(duration), _zones));
+  }
+  break;
+  case Periodicity::EVERY_X_HOUR:
+  {
+    Serial.println("EVERY_X_HOUR");
+    byte hours = eventData["hours"];
+    byte minute = eventData["minute"];
+    byte second = eventData["second"];
+
+    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::EveryXHours(hours, minute, second), Chronos::Span::Minutes(duration), _zones));
+  }
+  break;
+  case Periodicity::DAILY:
+  {
+    Serial.println("DAILY");
+    byte hour = eventData["hour"];
+    byte minute = eventData["minute"];
+
+    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Daily(hour, minute), Chronos::Span::Minutes(duration), _zones));
+  }
+  break;
+  case Periodicity::EVERY_X_DAYS:
+  {
+    Serial.println("EVERY_X_DAYS");
+    byte days = eventData["days"];
+    byte hour = eventData["hour"];
+    byte minute = eventData["minute"];
+
+    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::EveryXDays(days, hour, minute), Chronos::Span::Minutes(duration), _zones));
+  }
+  break;
+  case Periodicity::WEEKLY:
+  {
+    Serial.println("WEEKLY");
+    byte dayOfWeek = eventData["dayOfWeek"];
+    byte hour = eventData["hour"];
+    byte minute = eventData["minute"];
+
+    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Weekly(dayOfWeek, hour, minute), Chronos::Span::Minutes(duration), _zones));
+  }
+  break;
+  case Periodicity::MONTHLY:
+  {
+    Serial.println("MONTHLY");
+    byte dayOfMonth = eventData["dayOfMonth"];
+    byte hour = eventData["hour"];
+    byte minute = eventData["minute"];
+
+    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Monthly(dayOfMonth, hour, minute), Chronos::Span::Minutes(duration), _zones));
+  }
+  break;
+  }
+
+  return eventSaved;
 }
 
 void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len)
@@ -583,7 +691,7 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       }
       else if (command == "manualIrrigation")
       {
-        int duration = root["data"]["duration"];
+        /*int duration = root["data"]["duration"];
         struct Chronos::Zones _zones = getZonesFromJson(root["data"]["zones"]);
         File manualFile = SD.open("/schedule_0.json", FILE_WRITE);
         if (!manualFile)
@@ -608,7 +716,7 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
         else
         {
           ws.textAll(MANUAL_IRRIGATION_STATUS_FALSE);
-        }
+        }*/
       }
       else if (command == "stopManualIrrigation")
       {
@@ -616,159 +724,7 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       }
       else if (command == "addOrEditSchedule")
       {
-        // Slot 0 is reserved for manual irrigation
-        if (MyCalendar.numEvents() >= CALENDAR_MAX_NUM_EVENTS - 1)
-        {
-          return;
-        }
-
-        int duration = root["data"]["duration"];
-        struct Chronos::Zones _zones = getZonesFromJson(root["data"]["zones"]);
-
-        byte periodicity = root["data"]["periodicity"];
-        JsonVariant eventId = root["data"]["evId"];
-        byte evId = MyCalendar.numEvents() + 1;
-        if (eventId.success())
-        {
-          evId = eventId.as<int>();
-
-          Serial.println("");
-          Serial.print("Edit schedule #");
-          Serial.println(evId);
-
-          root["data"]["enabled"] = MyCalendar.isEnabled(evId);
-
-          removeEvent(evId);
-        }
-        else
-        {
-          Serial.println("");
-          Serial.print("Add schedule");
-          root["data"]["enabled"] = true; //New event always enabled
-        }
-
-        char scheduleFileName[20];
-        sprintf(scheduleFileName, "/schedule_%d.json", evId);
-        File scheduleFile = SD.open(scheduleFileName, FILE_WRITE);
-        if (!scheduleFile)
-        {
-          Serial.println(F("Failed to create schedule"));
-          return;
-        }
-
-        switch (periodicity)
-        {
-        case Periodicity::HOURLY:
-        {
-          Serial.println("HOURLY");
-          byte minute = root["data"]["minute"];
-          byte second = root["data"]["second"];
-
-          if (MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Hourly(minute, second), Chronos::Span::Minutes(duration), _zones)))
-          {
-            root["data"].printTo(scheduleFile);
-          }
-          else
-          {
-            scheduleFile.close();
-            SD.remove(scheduleFileName);
-          }
-        }
-        break;
-        case Periodicity::EVERY_X_HOUR:
-        {
-          Serial.println("EVERY_X_HOUR");
-          byte hours = root["data"]["hours"];
-          byte minute = root["data"]["minute"];
-          byte second = root["data"]["second"];
-          if (MyCalendar.add(Chronos::Event(evId, Chronos::Mark::EveryXHours(hours, minute, second), Chronos::Span::Minutes(duration), _zones)))
-          {
-            root["data"].printTo(scheduleFile);
-          }
-          else
-          {
-            scheduleFile.close();
-            SD.remove(scheduleFileName);
-          }
-        }
-        break;
-        case Periodicity::DAILY:
-        {
-          Serial.println("DAILY");
-          byte hour = root["data"]["hour"];
-          byte minute = root["data"]["minute"];
-          if (MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Daily(hour, minute), Chronos::Span::Minutes(duration), _zones)))
-          {
-            root["data"].printTo(scheduleFile);
-          }
-          else
-          {
-            scheduleFile.close();
-            SD.remove(scheduleFileName);
-          }
-        }
-        break;
-        case Periodicity::EVERY_X_DAYS:
-        {
-          Serial.println("EVERY_X_DAYS");
-          byte days = root["data"]["days"];
-          byte hour = root["data"]["hour"];
-          byte minute = root["data"]["minute"];
-          if (MyCalendar.add(Chronos::Event(evId, Chronos::Mark::EveryXDays(days, hour, minute), Chronos::Span::Minutes(duration), _zones)))
-          {
-            root["data"].printTo(scheduleFile);
-          }
-          else
-          {
-            scheduleFile.close();
-            SD.remove(scheduleFileName);
-          }
-        }
-        break;
-        case Periodicity::WEEKLY:
-        {
-          Serial.println("WEEKLY");
-          byte dayOfWeek = root["data"]["dayOfWeek"];
-          byte hour = root["data"]["hour"];
-          byte minute = root["data"]["minute"];
-          if (MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Weekly(dayOfWeek, hour, minute), Chronos::Span::Minutes(duration), _zones)))
-          {
-            root["data"].printTo(scheduleFile);
-          }
-          else
-          {
-            scheduleFile.close();
-            SD.remove(scheduleFileName);
-          }
-        }
-        break;
-        case Periodicity::MONTHLY:
-        {
-          Serial.println("MONTHLY");
-          byte dayOfMonth = root["data"]["dayOfMonth"];
-          byte hour = root["data"]["hour"];
-          byte minute = root["data"]["minute"];
-          if (MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Monthly(dayOfMonth, hour, minute), Chronos::Span::Minutes(duration), _zones)))
-          {
-            root["data"].printTo(scheduleFile);
-          }
-          else
-          {
-            scheduleFile.close();
-            SD.remove(scheduleFileName);
-          }
-        }
-        break;
-        }
-        scheduleFile.close();
-
-        // If edit event then need update from SD
-        if (eventId.success())
-        {
-          loadCalendarFromSD();
-        }
-        sendSlotsToWS();
-        ws.textAll(SCHEDULE_ADD_EDIT);
+        addOrEditSchedule(root["data"]);
       }
       else if (command == "setEventEnabled")
       {
@@ -1035,11 +991,11 @@ void checkCalendar()
         if ((int)occurrenceList[i].id == 0)
         {
           //Manual irrigation
-          ws.textAll(MANUAL_IRRIGATION_STATUS_TRUE);
+          /*ws.textAll(MANUAL_IRRIGATION_STATUS_TRUE);
           if ((Chronos::DateTime::now() - occurrenceList[i].finish) <= 1)
           {
             stopManualIrrigation();
-          }
+          }*/
         }
       }
     }

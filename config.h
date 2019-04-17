@@ -30,6 +30,7 @@
 #define CALENDAR_MAX_NUM_EVENTS 25
 #define CALENDAR_CHECK_INTERVAL 1000
 #define ZONES_COUNT 4
+#define SCHEDULE_FILE_NAME "/schedule.json"
 
 /* Web server configuration */
 #define HTTP_PORT 80
