@@ -49,7 +49,6 @@ $(document).ready(function () {
                     endDate.add(slot.duration, 'm');
                     var startDate = moment(currDate);
                     events.push({
-                        title: slot.evId,
                         start: startDate,
                         end: endDate
                     });
@@ -83,7 +82,6 @@ $(document).ready(function () {
                                 var endDate = moment(startDate);
                                 endDate.add(slot.duration, 'm');
                                 events.push({
-                                    title: slot.evId,
                                     start: startDate,
                                     end: endDate
                                 });
@@ -200,7 +198,7 @@ $(document).ready(function () {
 
     $(document).on('click', '.event-actions .action-edit', function () {
         var evId = parseInt($(this).closest('tr').find('td:first').text());
-        var slot = calendarEvents[evId];
+        var slot = getSlotById(evId);
         if (null == slot) {
             return;
         }
@@ -294,10 +292,12 @@ function notify(text, type) {
     $.notify(text, { type: type, placement: { from: 'top', align: 'center' } });
 }
 
+function getSlotById(evId) {
+    return calendarEvents.slots[evId] || null;
+};
+
 function processSlots(data = null) {
-    //calendarEvents = data;
-    //TODO: only for test
-    calendarEvents = data || JSON.parse('{"slots":[{"duration":30,"zones":[1],"minute":30,"hour":13,"periodicity":2,"enabled":true,"evId":2}],"total":24,"occupied":3}');
+    calendarEvents = data;
     var $eventTableBody = $('#events-list tbody');
     if (null !== calendarEvents) {
         $('#calendar').fullCalendar('refetchEvents');
@@ -315,7 +315,7 @@ function processSlots(data = null) {
         $('#schedule-mode .add-schedule').prop('disabled', availableSlots <= 0);
 
         for (var i = 0; i < total; i++) {
-            var slot = calendarEvents[i];
+            var slot = getSlotById(i);
             var enabled = null !== slot ? slot.enabled : true;
             enabled = isNaN(enabled) ? true : enabled;
             var tr = '<tr><td colspan="5">Free slot</td></tr>';
@@ -362,7 +362,6 @@ function WebSocketBegin(location) {
     if ("WebSocket" in window) {
         ws = new WebSocket(location);
         ws.onopen = function () {
-            notify('WS connected', 'success');
             $('#ws-n-conn').hide();
             getSlots();
             getSysInfo();

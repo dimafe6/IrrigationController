@@ -159,10 +159,13 @@ void loadCalendarFromSD()
   JsonArray &schedule = jsonBuffer.parseArray(scheduleFile);
   scheduleFile.close();
 
+  MyCalendar.clear();
+
   int evId = 0;
   for (JsonObject &eventData : schedule)
   {
     addEventToCalendar(evId, eventData);
+    evId++;
   }
 }
 
@@ -197,10 +200,15 @@ void sendSlotsToWS()
     slots.add(eventData);
   }
 
+  Serial.println("Slots count from SD:");
+  Serial.println(slots.size());
+  Serial.println("Slots count from memory:");
+  Serial.println(MyCalendar.numEvents());
+
   String json;
   json.reserve(2048);
   data["total"] = CALENDAR_MAX_NUM_EVENTS - 1;
-  data["occupied"] = MyCalendar.numRecurring();
+  data["occupied"] = MyCalendar.numEvents();
   response.printTo(json);
 
   ws.textAll(json);
@@ -215,46 +223,6 @@ void sendSysInfoToWS()
   JsonObject &data = sysInfo.createNestedObject("data");
   JsonObject &wifi = data.createNestedObject("WiFi");
   wifi["SSID"] = WiFi.SSID();
-  wifi_power_t power = WiFi.getTxPower();
-  switch (power)
-  {
-  case WIFI_POWER_19_5dBm:
-    wifi["power"] = "19.5dBm";
-    break;
-  case WIFI_POWER_19dBm:
-    wifi["power"] = "19dBm";
-    break;
-  case WIFI_POWER_18_5dBm:
-    wifi["power"] = "18.5dBm";
-    break;
-  case WIFI_POWER_17dBm:
-    wifi["power"] = "17dBm";
-    break;
-  case WIFI_POWER_15dBm:
-    wifi["power"] = "15dBm";
-    break;
-  case WIFI_POWER_13dBm:
-    wifi["power"] = "13dBm";
-    break;
-  case WIFI_POWER_11dBm:
-    wifi["power"] = "11dBm";
-    break;
-  case WIFI_POWER_8_5dBm:
-    wifi["power"] = "8.5dBm";
-    break;
-  case WIFI_POWER_7dBm:
-    wifi["power"] = "7dBm";
-    break;
-  case WIFI_POWER_5dBm:
-    wifi["power"] = "5dBm";
-    break;
-  case WIFI_POWER_2dBm:
-    wifi["power"] = "2dBm";
-    break;
-  case WIFI_POWER_MINUS_1dBm:
-    wifi["power"] = "-1dBm";
-    break;
-  }
   wifi["RSSI"] = WiFi.RSSI();
   wifi["localIP"] = WiFi.localIP().toString();
 
@@ -356,7 +324,6 @@ bool removeEvent(byte evId)
 
   if (MyCalendar.remove(evId))
   {
-
     JsonArray &schedule = jsonBuffer.parseArray(scheduleString);
     scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_WRITE);
     if (!scheduleFile)
@@ -375,44 +342,6 @@ bool removeEvent(byte evId)
     scheduleFile.close();
   }
 
-  /*char scheduleFileName[20];
-  sprintf(scheduleFileName, "/schedule_%d.json", evId);
-  if (MyCalendar.remove(evId))
-  {
-    if (SD.remove(scheduleFileName))
-    {
-      Serial.println("File deleted");
-      uint8_t numEvents = MyCalendar.numEvents();
-      if (evId <= numEvents)
-      {
-        Serial.println("Files reordering...");
-        for (uint8_t i = evId; i <= numEvents; i++)
-        {
-          char newFilename[20];
-          char oldFilename[20];
-          sprintf(oldFilename, "/schedule_%d.json", i + 1);
-          sprintf(newFilename, "/schedule_%d.json", i);
-          Serial.println("Rename from: ");
-          Serial.println(oldFilename);
-          Serial.println("Rename to: ");
-          Serial.println(newFilename);
-          if (SD.exists(oldFilename))
-          {
-            SD.rename(oldFilename, newFilename);
-          }
-        }
-        Serial.println("Reordering finished");
-      }
-      return true;
-    }
-    else
-    {
-      Serial.println("Delete failed");
-
-      return false;
-    }
-  }
-*/
   return false;
 }
 
@@ -477,14 +406,14 @@ void stopManualIrrigation()
 
 void addOrEditSchedule(JsonObject &eventData)
 {
-  if (MyCalendar.numRecurring() >= CALENDAR_MAX_NUM_EVENTS - 1)
+  if (MyCalendar.numEvents() >= CALENDAR_MAX_NUM_EVENTS - 1)
   {
     return;
   }
 
   JsonVariant eventId = eventData["evId"];
   bool isEditEvent = eventId.success();
-  byte evId = MyCalendar.numRecurring();
+  byte evId = MyCalendar.numEvents();
 
   if (isEditEvent)
   {
@@ -545,12 +474,6 @@ void addOrEditSchedule(JsonObject &eventData)
     scheduleFile.close();
   }
 
-  // If edit event then need update from SD
-  if (isEditEvent)
-  {
-    loadCalendarFromSD();
-  }
-
   sendSlotsToWS();
 
   ws.textAll(SCHEDULE_ADD_EDIT);
@@ -574,6 +497,9 @@ bool addEventToCalendar(byte evId, JsonObject &eventData)
   {
     eventData.remove("evId");
   }
+
+  Serial.println("Event id:");
+  Serial.println(evId);
 
   switch (periodicity)
   {
@@ -686,7 +612,6 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       else if (command == "removeEvent")
       {
         removeEvent(root["data"]["evId"]);
-        loadCalendarFromSD();
         sendSlotsToWS();
       }
       else if (command == "manualIrrigation")
