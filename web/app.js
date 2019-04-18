@@ -381,6 +381,17 @@ function processSlots(data = null) {
     }
 }
 
+function decodeMsgPackToJsonObject(hex) {
+    var bytes = [];
+    hex = hex.replace(/\s/g, "");
+    for (var c = 0; c < hex.length; c += 2) {
+        bytes.push(parseInt(hex.substr(c, 2), 16));
+    }
+    var result = msgpack5().decode(new Uint8Array(bytes));
+
+    return result;
+}
+
 function WebSocketBegin(location) {
     if ("WebSocket" in window) {
         ws = new WebSocket(location);
@@ -391,7 +402,12 @@ function WebSocketBegin(location) {
         };
 
         ws.onmessage = function (evt) {
-            var jsonObject = JSON.parse(evt.data);
+            var jsonObject = null;
+            try {
+                jsonObject = JSON.parse(evt.data);
+            } catch (e) {
+                jsonObject = decodeMsgPackToJsonObject(ev.data);
+            }
             console.log(jsonObject);
             var command = jsonObject.command || null;
             if (null !== command) {
