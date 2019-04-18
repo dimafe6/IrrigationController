@@ -138,6 +138,14 @@ void initWebServer()
   server.begin();
 }
 
+void sendMsgPackToWs(const JsonDocument& doc)
+{
+  size_t length = measureJson(doc);
+  char *msgPack;
+  serializeMsgPack(doc, msgPack, length);
+  ws.binaryAll(msgPack);
+}
+
 bool openScheduleFromSD(DynamicJsonDocument &doc)
 {
   File scheduleFile;
@@ -214,11 +222,7 @@ void sendSlotsToWS()
   data["total"] = CALENDAR_MAX_NUM_EVENTS - 1;
   data["occupied"] = MyCalendar.numEvents();
 
-  String json;
-  json.reserve(measureJson(response));
-  serializeJson(response, json);
-
-  ws.textAll(json);
+  sendMsgPackToWs(response);
 }
 
 void sendSysInfoToWS()
@@ -268,11 +272,7 @@ void sendSysInfoToWS()
   sprintf(size, "%dKB", SPIFFS.usedBytes() / 1024);
   spiffsInfo["used"] = size;
 
-  String json;
-  json.reserve(512);
-
-  serializeJson(sysInfo, json);
-  ws.textAll(json);
+  sendMsgPackToWs(sysInfo);
 }
 
 Chronos::Zones getZonesFromJson(const JsonArray &zones)
@@ -908,8 +908,6 @@ void updateWeatherData(int temp, int pressure, int humidity, int light, int wate
     weatherData.groundHum = groundHum;
   }
 
-  String answerString;
-  answerString.reserve(1024);
   DynamicJsonDocument answer(1024);
   answer["command"] = "weatherUpdate";
   JsonObject data = answer.createNestedObject("data");
@@ -920,9 +918,8 @@ void updateWeatherData(int temp, int pressure, int humidity, int light, int wate
   data["waterTemp"] = weatherData.waterTemp;
   data["rain"] = weatherData.rain;
   data["groundHum"] = weatherData.groundHum;
-  serializeJson(answer, answerString);
 
-  ws.textAll(answerString.c_str());
+  sendMsgPackToWs(answer);
 }
 
 void listenRadio()
