@@ -31,6 +31,8 @@
 #define CALENDAR_MAX_NUM_EVENTS 25
 #define CALENDAR_CHECK_INTERVAL 1000
 #define ZONES_COUNT 4
+#define MANUAL_IRRIGATION_EVENT_ID CALENDAR_MAX_NUM_EVENTS
+#define MANUAL_IRRIGATION_FILE_NAME "/manual.json"
 #define SCHEDULE_FILE_NAME "/schedule.json"
 
 /* Web server configuration */
@@ -45,6 +47,5 @@
 
 /* WS messages */
 #define MANUAL_IRRIGATION_STATUS_TRUE "{\"command\":\"manualIrrigation\",\"status\":true}"
-#define MANUAL_IRRIGATION_STATUS_FALSE "{\"command\":\"manualIrrigation\",\"status\":false}"
 #define MANUAL_IRRIGATION_STOP "{\"command\":\"stopManualIrrigation\"}"
 #define SCHEDULE_ADD_EDIT "{\"command\":\"addOrEditSchedule\"}"

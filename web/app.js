@@ -253,7 +253,7 @@ $(document).ready(function () {
                 break;
             case 1:
                 var $periodBlock = $('.period-block.every-x-hours');
-                $periodBlock.find('.time-hours').pickatime().pickatime('picker').set('select', slot.hours);
+                $periodBlock.find('.time-hours').pickatime().pickatime('picker').set('select', [slot.hours, 0]);
                 $periodBlock.find('.time-minute').pickatime().pickatime('picker').set('select', slot.minute);
                 $periodBlock.find('.time-second').pickatime().pickatime('picker').set('select', slot.second);
                 break;
@@ -304,7 +304,7 @@ function cancelEditSchedule() {
     $('#schedule-mode-zones label').removeClass('active');
     $('#schedule-mode-zones input[value="1"]').parent().addClass('active');
     $('#periodicity').val(0).trigger('change');
-    $('#duration').val(5).trigger('change');
+    $('#schedule-mode .duration').val(5).trigger('change');
     var $periodBlock = $('.period-block.hourly');
     $periodBlock.find('.time-minute').pickatime().pickatime('picker').set('select', 0);
     $periodBlock.find('.time-second').pickatime().pickatime('picker').set('select', 0);
@@ -348,7 +348,7 @@ function processSlots(data = null) {
 
             var actions = `<td class="event-actions">
                 <div class="dropdown">
-                <button class="btn btn-xs btn-default dropdown-toggle" type="button" data-toggle="dropdown">Actions <span class="caret"></span></button>
+                <button class="btn btn-xs btn-default dropdown-toggle action-btn" type="button" data-toggle="dropdown">Actions <span class="caret"></span></button>
                 <ul class="dropdown-menu dropdown-menu-right" role="menu">
                 <li role="presentation">
                 <a class="action-edit" role="menuitem"><i class="fa fa-edit text-warning"></i> Edit</a>
@@ -381,17 +381,6 @@ function processSlots(data = null) {
     }
 }
 
-function decodeMsgPackToJsonObject(hex) {
-    var bytes = [];
-    hex = hex.replace(/\s/g, "");
-    for (var c = 0; c < hex.length; c += 2) {
-        bytes.push(parseInt(hex.substr(c, 2), 16));
-    }
-    var result = msgpack5().decode(new Uint8Array(bytes));
-
-    return result;
-}
-
 function WebSocketBegin(location) {
     if ("WebSocket" in window) {
         ws = new WebSocket(location);
@@ -402,12 +391,8 @@ function WebSocketBegin(location) {
         };
 
         ws.onmessage = function (evt) {
-            var jsonObject = null;
-            try {
-                jsonObject = JSON.parse(evt.data);
-            } catch (e) {
-                jsonObject = decodeMsgPackToJsonObject(ev.data);
-            }
+            var jsonObject = JSON.parse(evt.data);
+
             console.log(jsonObject);
             var command = jsonObject.command || null;
             if (null !== command) {
@@ -432,8 +417,6 @@ function WebSocketBegin(location) {
                         $('.add-schedule').prop("disabled", !(availableSlots > 0));
                         break;
                     case 'getSysInfo':
-                        //TODO: only for test
-                        var test = JSON.parse('{"command":"getSysInfo","data":{"WiFi":{"SSID":"dimaPC","power":"19.5dBm","RSSI":-48,"localIP":"10.42.0.221"},"heap":{"total":322248,"free":205672,"min":181500,"maxAlloc":113792},"SD":{"type":"SDHC","total":"3809MB","used":"4MB"},"SPIFFS":{"total":"1342KB","used":"51KB"}}}');
                         console.log(data);
                         break;
                 }
@@ -660,7 +643,9 @@ function getExplanationForSchedule(scheduleObject) {
 }
 
 function addOrEditSchedule() {
-    if (availableSlots <= 0) {
+    var eventSlot = getSchedule();
+    
+    if (availableSlots <= 0 && isNaN(eventSlot.evId)) {
         alert("There are no available slots");
         return;
     }
@@ -670,8 +655,6 @@ function addOrEditSchedule() {
         $('#schedule-mode-zones input[type="checkbox"]:eq(0)').click();
         return;
     }
-
-    var eventSlot = getSchedule();
 
     if (confirm("Are you sure?")) {
         var command = {};
@@ -713,6 +696,7 @@ function removeEvent(evId) {
     command.data.evId = evId;
 
     ws.send(JSON.stringify(command));
+    $('.action-btn').prop('disabled', 1);
 }
 
 function setEventEnabled(evId, enabled = true) {
@@ -723,6 +707,7 @@ function setEventEnabled(evId, enabled = true) {
     command.data.enabled = enabled;
 
     ws.send(JSON.stringify(command));
+    $('.action-btn').prop('disabled', 1);
 }
 
 function getSysInfo() {

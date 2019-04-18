@@ -62,6 +62,7 @@ void setup()
   initRtc();
   initSD();
   loadCalendarFromSD();
+  loadManualIrrigationFromSD();
   initSPIFFS();
   initWiFi();
   initWebServer();
@@ -138,12 +139,11 @@ void initWebServer()
   server.begin();
 }
 
-void sendMsgPackToWs(const JsonDocument& doc)
+void sendDocumentToWs(const JsonDocument &doc)
 {
-  size_t length = measureJson(doc);
-  char *msgPack;
-  serializeMsgPack(doc, msgPack, length);
-  ws.binaryAll(msgPack);
+  String msg;
+  serializeJson(doc, msg);
+  ws.textAll(msg);
 }
 
 bool openScheduleFromSD(DynamicJsonDocument &doc)
@@ -189,7 +189,7 @@ void loadCalendarFromSD()
 
   MyCalendar.clear();
 
-  JsonArray arraySchedule = schedule.to<JsonArray>();
+  JsonArray arraySchedule = schedule.as<JsonArray>();
   int evId = 0;
   for (JsonObject eventData : arraySchedule)
   {
@@ -212,22 +212,27 @@ void sendSlotsToWS()
   JsonObject data = response.createNestedObject("data");
   JsonArray slots = data.createNestedArray("slots");
 
-  JsonArray arraySchedule = schedule.to<JsonArray>();
-  int evId = 0;
+  JsonArray arraySchedule = schedule.as<JsonArray>();
   for (JsonObject eventData : arraySchedule)
   {
     slots.add(eventData);
   }
 
-  data["total"] = CALENDAR_MAX_NUM_EVENTS - 1;
-  data["occupied"] = MyCalendar.numEvents();
+  if (slots.size() != MyCalendar.numRecurring())
+  {
+    loadCalendarFromSD();
+    sendSlotsToWS();
+  }
 
-  sendMsgPackToWs(response);
+  data["total"] = CALENDAR_MAX_NUM_EVENTS - 1;
+  data["occupied"] = MyCalendar.numRecurring();
+
+  sendDocumentToWs(response);
 }
 
 void sendSysInfoToWS()
 {
-  DynamicJsonDocument sysInfo(512);
+  DynamicJsonDocument sysInfo(300);
   sysInfo["command"] = "getSysInfo";
 
   JsonObject data = sysInfo.createNestedObject("data");
@@ -272,7 +277,7 @@ void sendSysInfoToWS()
   sprintf(size, "%dKB", SPIFFS.usedBytes() / 1024);
   spiffsInfo["used"] = size;
 
-  sendMsgPackToWs(sysInfo);
+  sendDocumentToWs(sysInfo);
 }
 
 Chronos::Zones getZonesFromJson(const JsonArray &zones)
@@ -366,23 +371,72 @@ bool setEventEnabled(byte evId, bool enabled)
   return true;
 }
 
-void stopManualIrrigation()
+void loadManualIrrigationFromSD()
 {
-  /*removeEvent(0);
-  loadCalendarFromSD();
-  ws.textAll(MANUAL_IRRIGATION_STOP);*/
-}
+  File manualFile;
 
-void addOrEditSchedule(const JsonObject &eventData)
-{
-  if (MyCalendar.numEvents() >= CALENDAR_MAX_NUM_EVENTS - 1)
+  if (!SD.exists(MANUAL_IRRIGATION_FILE_NAME))
   {
     return;
   }
 
+  manualFile = SD.open(MANUAL_IRRIGATION_FILE_NAME, FILE_READ);
+  if (!manualFile)
+  {
+    PRINTLN(F("Failed to read manual irrigation file"));
+
+    return;
+  }
+
+  DynamicJsonDocument manual(128);
+
+  DeserializationError error = deserializeJson(manual, manualFile);
+  if (error)
+  {
+    PRINTLN(F("deserializeJson() failed with code "));
+    PRINTLN(error.c_str());
+
+    return;
+  }
+
+  manualFile.close();
+
+  JsonObject eventData = manual.as<JsonObject>();
+
+  int duration = eventData["duration"];
+  struct Chronos::Zones _zones = getZonesFromJson(eventData["zones"]);
+  Chronos::EpochTime from = eventData["from"];
+  Chronos::EpochTime to = eventData["to"];
+
+  MyCalendar.remove(MANUAL_IRRIGATION_EVENT_ID);
+
+  // Expired event
+  if (to < Chronos::DateTime::now().asEpoch())
+  {
+    SD.remove(MANUAL_IRRIGATION_FILE_NAME);
+    return;
+  }
+
+  MyCalendar.add(Chronos::Event(MANUAL_IRRIGATION_EVENT_ID, Chronos::DateTime(from), Chronos::DateTime(to), _zones));
+}
+
+void stopManualIrrigation()
+{
+  removeEvent(MANUAL_IRRIGATION_EVENT_ID);
+  SD.remove(MANUAL_IRRIGATION_FILE_NAME);
+  ws.textAll(MANUAL_IRRIGATION_STOP);
+}
+
+void addOrEditSchedule(const JsonObject &eventData)
+{
   JsonVariant eventId = eventData["evId"];
   bool isEditEvent = !eventId.isNull();
-  byte evId = MyCalendar.numEvents();
+  byte evId = MyCalendar.numRecurring();
+
+  if (MyCalendar.numRecurring() >= CALENDAR_MAX_NUM_EVENTS - 1 && !isEditEvent)
+  {
+    return;
+  }
 
   if (isEditEvent)
   {
@@ -456,6 +510,8 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
     eventData.remove("evId");
   }
 
+  bool isEnabled = enabled.as<bool>();
+
   Serial.println("Event id:");
   Serial.println(evId);
 
@@ -467,7 +523,7 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
     byte minute = eventData["minute"];
     byte second = eventData["second"];
 
-    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Hourly(minute, second), Chronos::Span::Minutes(duration), _zones));
+    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Hourly(minute, second), Chronos::Span::Minutes(duration), _zones, isEnabled));
   }
   break;
   case Periodicity::EVERY_X_HOUR:
@@ -477,7 +533,7 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
     byte minute = eventData["minute"];
     byte second = eventData["second"];
 
-    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::EveryXHours(hours, minute, second), Chronos::Span::Minutes(duration), _zones));
+    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::EveryXHours(hours, minute, second), Chronos::Span::Minutes(duration), _zones, isEnabled));
   }
   break;
   case Periodicity::DAILY:
@@ -486,7 +542,7 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
     byte hour = eventData["hour"];
     byte minute = eventData["minute"];
 
-    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Daily(hour, minute), Chronos::Span::Minutes(duration), _zones));
+    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Daily(hour, minute), Chronos::Span::Minutes(duration), _zones, isEnabled));
   }
   break;
   case Periodicity::EVERY_X_DAYS:
@@ -496,7 +552,7 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
     byte hour = eventData["hour"];
     byte minute = eventData["minute"];
 
-    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::EveryXDays(days, hour, minute), Chronos::Span::Minutes(duration), _zones));
+    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::EveryXDays(days, hour, minute), Chronos::Span::Minutes(duration), _zones, isEnabled));
   }
   break;
   case Periodicity::WEEKLY:
@@ -506,7 +562,7 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
     byte hour = eventData["hour"];
     byte minute = eventData["minute"];
 
-    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Weekly(dayOfWeek, hour, minute), Chronos::Span::Minutes(duration), _zones));
+    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Weekly(dayOfWeek, hour, minute), Chronos::Span::Minutes(duration), _zones, isEnabled));
   }
   break;
   case Periodicity::MONTHLY:
@@ -516,12 +572,39 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
     byte hour = eventData["hour"];
     byte minute = eventData["minute"];
 
-    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Monthly(dayOfMonth, hour, minute), Chronos::Span::Minutes(duration), _zones));
+    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Monthly(dayOfMonth, hour, minute), Chronos::Span::Minutes(duration), _zones, isEnabled));
   }
   break;
   }
 
   return eventSaved;
+}
+
+void addManualEventToCalendar(const JsonObject &eventData)
+{
+  int duration = eventData["duration"];
+  struct Chronos::Zones _zones = getZonesFromJson(eventData["zones"]);
+
+  File manualFile = SD.open(MANUAL_IRRIGATION_FILE_NAME, FILE_WRITE);
+  if (!manualFile)
+  {
+    Serial.println(F("Failed to start irrigation"));
+    return;
+  }
+
+  MyCalendar.remove(MANUAL_IRRIGATION_EVENT_ID);
+  if (MyCalendar.add(Chronos::Event(MANUAL_IRRIGATION_EVENT_ID, Chronos::DateTime::now(), Chronos::DateTime::now() + Chronos::Span::Minutes(duration), _zones)))
+  {
+    DynamicJsonDocument manual(128);
+    manual["from"] = Chronos::DateTime::now().asEpoch();
+    manual["to"] = (Chronos::DateTime::now() + Chronos::Span::Minutes(duration)).asEpoch();
+    manual["zones"] = eventData["zones"];
+    manual["duration"] = eventData["duration"];
+
+    serializeJson(manual, manualFile);
+    manualFile.close();
+    ws.textAll(MANUAL_IRRIGATION_STATUS_TRUE);
+  }
 }
 
 void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len)
@@ -548,15 +631,13 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       }
     }
 
-    Serial.println(msg);
-    DynamicJsonDocument root(msg.length());
-
+    DynamicJsonDocument root(512);
+    deserializeJson(root, msg);
     if (!root.isNull())
     {
       String command = root["command"];
       if (command == "WiFiConfig")
       {
-        serializeJson(root, Serial);
         const char *ssid = root["data"]["ssid"];
         const char *password = root["data"]["pass"];
 
@@ -574,32 +655,7 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       }
       else if (command == "manualIrrigation")
       {
-        /*int duration = root["data"]["duration"];
-        struct Chronos::Zones _zones = getZonesFromJson(root["data"]["zones"]);
-        File manualFile = SD.open("/schedule_0.json", FILE_WRITE);
-        if (!manualFile)
-        {
-          Serial.println(F("Failed to start irrigation"));
-          return;
-        }
-
-        MyCalendar.removeAll(0);
-        if (MyCalendar.add(Chronos::Event(0, Chronos::DateTime::now(), Chronos::DateTime::now() + Chronos::Span::Minutes(duration), _zones)))
-        {
-          DynamicJsonBuffer buf(128);
-          JsonObject &manual = buf.createObject();
-          manual["from"] = Chronos::DateTime::now().asEpoch();
-          manual["to"] = (Chronos::DateTime::now() + Chronos::Span::Minutes(duration)).asEpoch();
-          manual["zones"] = root["data"]["zones"];
-          manual["periodicity"] = -1;
-          manual["duration"] = root["data"]["duration"];
-          manual.printTo(manualFile);
-          ws.textAll(MANUAL_IRRIGATION_STATUS_TRUE);
-        }
-        else
-        {
-          ws.textAll(MANUAL_IRRIGATION_STATUS_FALSE);
-        }*/
+        addManualEventToCalendar(root["data"]);
       }
       else if (command == "stopManualIrrigation")
       {
@@ -615,7 +671,6 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
         {
           Serial.println("Error set event enabled");
         }
-        //No need to update from SD
         sendSlotsToWS();
       }
       else if (command == "getSysInfo")
@@ -810,10 +865,6 @@ void initRtc()
   Serial.print("Free heap: ");
   Serial.print(ESP.getFreeHeap());
   Serial.println("");
-
-  //MyCalendar.add(Chronos::Event(CALENDAR_ZONE_1, Chronos::Mark::EveryXDays(2, 15, 0), Chronos::Span::Seconds(10)));
-  //MyCalendar.add(Chronos::Event(CALENDAR_ZONE_1, Chronos::Mark::EveryXHours(5, 30, 0), Chronos::Span::Seconds(10)));
-  //MyCalendar.add(Chronos::Event(CALENDAR_ZONE_1, Chronos::Mark::Weekly(Chronos::Weekday::Friday, 2, 0), Chronos::Span::Seconds(10)));
 }
 
 static time_t getTime()
@@ -863,14 +914,15 @@ void checkCalendar()
         Serial.print(": ");
         (Chronos::DateTime::now() - occurrenceList[i].finish).printTo(Serial);
         Serial.println("");
-        if ((int)occurrenceList[i].id == 0)
+
+        if ((int)occurrenceList[i].id == MANUAL_IRRIGATION_EVENT_ID)
         {
           //Manual irrigation
-          /*ws.textAll(MANUAL_IRRIGATION_STATUS_TRUE);
+          ws.textAll(MANUAL_IRRIGATION_STATUS_TRUE);
           if ((Chronos::DateTime::now() - occurrenceList[i].finish) <= 1)
           {
             stopManualIrrigation();
-          }*/
+          }
         }
       }
     }
@@ -919,7 +971,7 @@ void updateWeatherData(int temp, int pressure, int humidity, int light, int wate
   data["rain"] = weatherData.rain;
   data["groundHum"] = weatherData.groundHum;
 
-  sendMsgPackToWs(answer);
+  sendDocumentToWs(answer);
 }
 
 void listenRadio()
@@ -943,22 +995,7 @@ void listenRadio()
 
         updateWeatherData(temp, pressure, humidity, light, waterTemp, rain, groundHum);
         HC12LastUpdate = millis();
-        /*
-        Serial.print("Temp: ");
-        Serial.println(weatherData.temp);
-        Serial.print("Pressure: ");
-        Serial.println(weatherData.pressure);
-        Serial.print("Humidity: ");
-        Serial.println(weatherData.humidity);
-        Serial.print("Light: ");
-        Serial.println(weatherData.light);
-        Serial.print("Wather temp: ");
-        Serial.println(weatherData.waterTemp);
-        Serial.print("Rain: ");
-        Serial.println(weatherData.rain);
-        Serial.print("Ground humidity: ");
-        Serial.println(weatherData.groundHum);
-*/
+
         if (millis() - thingSpeakLastUpdate > THING_SPEAK_WRITE_INTERVAL)
         {
           thingSpeakLastUpdate = millis();
