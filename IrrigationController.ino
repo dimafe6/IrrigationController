@@ -138,31 +138,52 @@ void initWebServer()
   server.begin();
 }
 
-void loadCalendarFromSD()
+bool openScheduleFromSD(DynamicJsonDocument &doc)
 {
-  DynamicJsonBuffer jsonBuffer(5000);
   File scheduleFile;
 
   if (!SD.exists(SCHEDULE_FILE_NAME))
   {
-    return;
+    return false;
   }
 
   scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_READ);
   if (!scheduleFile)
   {
-    Serial.println(F("Failed to read schedule"));
+    PRINTLN(F("Failed to read schedule"));
+
+    return false;
+  }
+
+  DeserializationError error = deserializeJson(doc, scheduleFile);
+  if (error)
+  {
+    PRINTLN(F("deserializeJson() failed with code "));
+    PRINTLN(error.c_str());
+
+    return false;
+  }
+
+  scheduleFile.close();
+}
+
+void loadCalendarFromSD()
+{
+  DynamicJsonDocument schedule(SCHEDULE_FILE_SIZE);
+
+  if (!openScheduleFromSD(schedule))
+  {
     return;
   }
 
-  //Read schedule to object
-  JsonArray &schedule = jsonBuffer.parseArray(scheduleFile);
-  scheduleFile.close();
+  PRINTLN(F("Schedule file is opened. Document size is:"));
+  PRINTLN(measureJson(schedule));
 
   MyCalendar.clear();
 
+  JsonArray arraySchedule = schedule.to<JsonArray>();
   int evId = 0;
-  for (JsonObject &eventData : schedule)
+  for (JsonObject eventData : arraySchedule)
   {
     addEventToCalendar(evId, eventData);
     evId++;
@@ -171,63 +192,53 @@ void loadCalendarFromSD()
 
 void sendSlotsToWS()
 {
-  if (!SD.exists(SCHEDULE_FILE_NAME))
+  DynamicJsonDocument schedule(SCHEDULE_FILE_SIZE);
+
+  if (!openScheduleFromSD(schedule))
   {
     return;
   }
 
-  File scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_READ);
-  if (!scheduleFile)
-  {
-    Serial.println(F("Failed to read schedule"));
-    return;
-  }
-
-  //Read schedule to object
-  DynamicJsonBuffer jsonBuffer(5000);
-  JsonArray &schedule = jsonBuffer.parseArray(scheduleFile);
-
-  scheduleFile.close();
-
-  DynamicJsonBuffer responseBuffer(5000);
-  JsonObject &response = responseBuffer.createObject();
+  DynamicJsonDocument response(SCHEDULE_FILE_SIZE + 128);
   response["command"] = "getSlots";
-  JsonObject &data = response.createNestedObject("data");
-  JsonArray &slots = data.createNestedArray("slots");
+  JsonObject data = response.createNestedObject("data");
+  JsonArray slots = data.createNestedArray("slots");
 
-  for (JsonObject &eventData : schedule)
+  JsonArray arraySchedule = schedule.to<JsonArray>();
+  int evId = 0;
+  for (JsonObject eventData : arraySchedule)
   {
     slots.add(eventData);
   }
 
-  String json;
-  json.reserve(2048);
   data["total"] = CALENDAR_MAX_NUM_EVENTS - 1;
   data["occupied"] = MyCalendar.numEvents();
-  response.printTo(json);
+
+  String json;
+  json.reserve(measureJson(response));
+  serializeJson(response, json);
 
   ws.textAll(json);
 }
 
 void sendSysInfoToWS()
 {
-  DynamicJsonBuffer sysInfoBuf(512);
-  JsonObject &sysInfo = sysInfoBuf.createObject();
+  DynamicJsonDocument sysInfo(512);
   sysInfo["command"] = "getSysInfo";
 
-  JsonObject &data = sysInfo.createNestedObject("data");
-  JsonObject &wifi = data.createNestedObject("WiFi");
+  JsonObject data = sysInfo.createNestedObject("data");
+  JsonObject wifi = data.createNestedObject("WiFi");
   wifi["SSID"] = WiFi.SSID();
   wifi["RSSI"] = WiFi.RSSI();
   wifi["localIP"] = WiFi.localIP().toString();
 
-  JsonObject &heap = data.createNestedObject("heap");
+  JsonObject heap = data.createNestedObject("heap");
   heap["total"] = ESP.getHeapSize();
   heap["free"] = ESP.getFreeHeap();
   heap["min"] = ESP.getMinFreeHeap();
   heap["maxAlloc"] = ESP.getMaxAllocHeap();
 
-  JsonObject &sdInfo = data.createNestedObject("SD");
+  JsonObject sdInfo = data.createNestedObject("SD");
   uint8_t cardType = SD.cardType();
   switch (cardType)
   {
@@ -251,7 +262,7 @@ void sendSysInfoToWS()
   sprintf(size, "%lluMB", SD.usedBytes() / (1024 * 1024));
   sdInfo["used"] = size;
 
-  JsonObject &spiffsInfo = data.createNestedObject("SPIFFS");
+  JsonObject spiffsInfo = data.createNestedObject("SPIFFS");
   sprintf(size, "%dKB", SPIFFS.totalBytes() / 1024);
   spiffsInfo["total"] = size;
   sprintf(size, "%dKB", SPIFFS.usedBytes() / 1024);
@@ -260,11 +271,11 @@ void sendSysInfoToWS()
   String json;
   json.reserve(512);
 
-  sysInfo.printTo(json);
+  serializeJson(sysInfo, json);
   ws.textAll(json);
 }
 
-Chronos::Zones getZonesFromJson(JsonArray &zones)
+Chronos::Zones getZonesFromJson(const JsonArray &zones)
 {
   struct Chronos::Zones _zones;
 
@@ -293,47 +304,28 @@ Chronos::Zones getZonesFromJson(JsonArray &zones)
 
 bool removeEvent(int evId)
 {
-  DynamicJsonBuffer jsonBuffer(5000);
-  File scheduleFile;
-  String scheduleString = "[]";
-  scheduleString.reserve(5000);
+  DynamicJsonDocument schedule(SCHEDULE_FILE_SIZE);
 
-  //If schedule exists then open it
-  if (SD.exists(SCHEDULE_FILE_NAME))
+  if (!openScheduleFromSD(schedule))
   {
-    scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_READ);
-    if (!scheduleFile)
-    {
-      Serial.println(F("Failed to read schedule"));
-      return false;
-    }
-
-    scheduleString = scheduleFile.readString();
-    scheduleFile.close();
-
-    if (!scheduleString.length())
-    {
-      return false;
-    }
+    return false;
   }
 
   if (MyCalendar.remove(evId))
   {
-    JsonArray &schedule = jsonBuffer.parseArray(scheduleString);
-    scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_WRITE);
+    File scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_WRITE);
     if (!scheduleFile)
     {
       Serial.println(F("Failed to create schedule"));
       return false;
     }
 
-    JsonVariant element = schedule[evId];
-    if (element.success())
+    if (!schedule[evId].isNull())
     {
       schedule.remove(evId);
     }
 
-    schedule.printTo(scheduleFile);
+    serializeJson(schedule, scheduleFile);
     scheduleFile.close();
   }
 
@@ -342,42 +334,16 @@ bool removeEvent(int evId)
 
 bool setEventEnabled(byte evId, bool enabled)
 {
-  DynamicJsonBuffer jsonBuffer(3000);
-  File scheduleFile;
-  String scheduleString = "[]";
-  scheduleString.reserve(3000);
+  DynamicJsonDocument schedule(SCHEDULE_FILE_SIZE);
 
-  //If schedule exists then open it
-  if (SD.exists(SCHEDULE_FILE_NAME))
+  if (!openScheduleFromSD(schedule))
   {
-    scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_READ);
-    if (!scheduleFile)
-    {
-      Serial.println(F("Failed to read schedule"));
-      return false;
-    }
-
-    scheduleString = scheduleFile.readString();
-    scheduleFile.close();
-
-    if (!scheduleString.length())
-    {
-      return false;
-    }
+    return false;
   }
 
   MyCalendar.setEnabled(evId, enabled);
 
-  JsonArray &schedule = jsonBuffer.parseArray(scheduleString);
-  scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_WRITE);
-  if (!scheduleFile)
-  {
-    Serial.println(F("Failed to create schedule"));
-    return false;
-  }
-
-  JsonVariant element = schedule[evId];
-  if (element.success())
+  if (!schedule[evId].isNull())
   {
     schedule[evId]["enabled"] = enabled;
   }
@@ -386,7 +352,15 @@ bool setEventEnabled(byte evId, bool enabled)
     return false;
   }
 
-  schedule.printTo(scheduleFile);
+  File scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_WRITE);
+  if (!scheduleFile)
+  {
+    Serial.println(F("Failed to create schedule"));
+
+    return false;
+  }
+
+  serializeJson(schedule, scheduleFile);
   scheduleFile.close();
 
   return true;
@@ -399,7 +373,7 @@ void stopManualIrrigation()
   ws.textAll(MANUAL_IRRIGATION_STOP);*/
 }
 
-void addOrEditSchedule(JsonObject &eventData)
+void addOrEditSchedule(const JsonObject &eventData)
 {
   if (MyCalendar.numEvents() >= CALENDAR_MAX_NUM_EVENTS - 1)
   {
@@ -407,7 +381,7 @@ void addOrEditSchedule(JsonObject &eventData)
   }
 
   JsonVariant eventId = eventData["evId"];
-  bool isEditEvent = eventId.success();
+  bool isEditEvent = !eventId.isNull();
   byte evId = MyCalendar.numEvents();
 
   if (isEditEvent)
@@ -427,45 +401,34 @@ void addOrEditSchedule(JsonObject &eventData)
     eventData["enabled"] = true; //New event always enabled
   }
 
-  DynamicJsonBuffer jsonBuffer(3000);
-  File scheduleFile;
-  String scheduleString = "[]";
-  scheduleString.reserve(3000);
+  DynamicJsonDocument schedule(SCHEDULE_FILE_SIZE);
 
-  //If schedule exists then open it
-  if (SD.exists(SCHEDULE_FILE_NAME))
-  {
-    scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_READ);
-    if (!scheduleFile)
-    {
-      Serial.println(F("Failed to read schedule"));
-      return;
-    }
-
-    scheduleString = scheduleFile.readString();
-    scheduleFile.close();
-  }
+  openScheduleFromSD(schedule);
 
   if (addEventToCalendar(evId, eventData))
   {
-    JsonArray &schedule = jsonBuffer.parseArray(scheduleString);
-    scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_WRITE);
+    if (schedule.isNull())
+    {
+      deserializeJson(schedule, "[]");
+    }
+
+    File scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_WRITE);
     if (!scheduleFile)
     {
       Serial.println(F("Failed to create schedule"));
       return;
     }
 
-    JsonVariant element = schedule[evId];
-    if (element.success())
+    if (!schedule[evId].isNull())
     {
-      schedule.set(evId, eventData);
+      schedule[evId] = eventData;
     }
     else
     {
       schedule.add(eventData);
     }
-    schedule.printTo(scheduleFile);
+
+    serializeJson(schedule, scheduleFile);
     scheduleFile.close();
   }
 
@@ -474,7 +437,7 @@ void addOrEditSchedule(JsonObject &eventData)
   ws.textAll(SCHEDULE_ADD_EDIT);
 }
 
-bool addEventToCalendar(byte evId, JsonObject &eventData)
+bool addEventToCalendar(byte evId, const JsonObject &eventData)
 {
   int duration = eventData["duration"];
   struct Chronos::Zones _zones = getZonesFromJson(eventData["zones"]);
@@ -483,12 +446,12 @@ bool addEventToCalendar(byte evId, JsonObject &eventData)
   JsonVariant enabled = eventData["enabled"];
   JsonVariant evIdElem = eventData["evId"];
 
-  if (!enabled.success())
+  if (enabled.isNull())
   {
     eventData["enabled"] = true;
   }
 
-  if (evIdElem.success())
+  if (!evIdElem.isNull())
   {
     eventData.remove("evId");
   }
@@ -584,16 +547,16 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
         msg.concat(buff);
       }
     }
-    Serial.println(msg);
-    DynamicJsonBuffer jsonBuffer(1024);
-    JsonObject &root = jsonBuffer.parseObject(msg);
 
-    if (root.success())
+    Serial.println(msg);
+    DynamicJsonDocument root(msg.length());
+
+    if (!root.isNull())
     {
       String command = root["command"];
       if (command == "WiFiConfig")
       {
-        root.printTo(Serial);
+        serializeJson(root, Serial);
         const char *ssid = root["data"]["ssid"];
         const char *password = root["data"]["pass"];
 
@@ -947,10 +910,9 @@ void updateWeatherData(int temp, int pressure, int humidity, int light, int wate
 
   String answerString;
   answerString.reserve(1024);
-  DynamicJsonBuffer jsonBuffer(1024);
-  JsonObject &answer = jsonBuffer.createObject();
+  DynamicJsonDocument answer(1024);
   answer["command"] = "weatherUpdate";
-  JsonObject &data = answer.createNestedObject("data");
+  JsonObject data = answer.createNestedObject("data");
   data["temp"] = weatherData.temp;
   data["pressure"] = weatherData.pressure;
   data["humidity"] = weatherData.humidity;
@@ -958,7 +920,7 @@ void updateWeatherData(int temp, int pressure, int humidity, int light, int wate
   data["waterTemp"] = weatherData.waterTemp;
   data["rain"] = weatherData.rain;
   data["groundHum"] = weatherData.groundHum;
-  answer.printTo(answerString);
+  serializeJson(answer, answerString);
 
   ws.textAll(answerString.c_str());
 }
@@ -969,10 +931,10 @@ void listenRadio()
   {
     if (millis() - HC12LastUpdate >= HC_12_UPDATE_INTERVAL)
     {
-      DynamicJsonBuffer jsonBuffer(1024);
-      JsonObject &root = jsonBuffer.parseObject(HC12);
+      DynamicJsonDocument root(1024);
+      deserializeJson(root, HC12);
 
-      if (root.success())
+      if (!root.isNull())
       {
         int temp = root["t"];
         int pressure = root["p"];

@@ -3,6 +3,7 @@
 #define HC_12_RX 26
 #define HC_12_TX 27
 #define HC_12_UPDATE_INTERVAL 2000
+#define PRINTLN(...)  Serial.println(__VA_ARGS__)
 
 /* LCD configuration */
 #define TFT_MISO 19 // 21 on LCD
@@ -40,6 +41,7 @@
 #define SD_MISO 33
 #define SD_MOSI 32
 #define SD_CS 13
+#define SCHEDULE_FILE_SIZE 8000
 
 /* WS messages */
 #define MANUAL_IRRIGATION_STATUS_TRUE "{\"command\":\"manualIrrigation\",\"status\":true}"
