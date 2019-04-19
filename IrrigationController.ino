@@ -232,7 +232,7 @@ void sendSlotsToWS()
 
 void sendSysInfoToWS()
 {
-  DynamicJsonDocument sysInfo(300);
+  DynamicJsonDocument sysInfo(512);
   sysInfo["command"] = "getSysInfo";
 
   JsonObject data = sysInfo.createNestedObject("data");
@@ -908,11 +908,15 @@ void checkCalendar()
     {
       for (int i = 0; i < numOngoing; i++)
       {
+        Chronos::DateTime start = occurrenceList[i].start;
+        Chronos::DateTime finish = occurrenceList[i].finish;
+        Chronos::EpochTime elapsed = finish.asEpoch() - start.asEpoch();
+
         Serial.println("");
         Serial.print("**** Event: ");
         Serial.print((int)occurrenceList[i].id);
         Serial.print(": ");
-        (Chronos::DateTime::now() - occurrenceList[i].finish).printTo(Serial);
+        (Chronos::DateTime::now() - finish).printTo(Serial);
         Serial.println("");
 
         if ((int)occurrenceList[i].id == MANUAL_IRRIGATION_EVENT_ID)

@@ -5,6 +5,7 @@ var periodicityList = { "-1": "Once", "0": "Hourly", "1": "Every X hours", "2": 
 var calendarEvents = [];
 var availableSlots;
 var calendar;
+var memChart;
 
 window.addEventListener('beforeunload', (event) => {
     ws.close();
@@ -12,9 +13,7 @@ window.addEventListener('beforeunload', (event) => {
 
 $(document).ready(function () {
     setInterval(function () {
-        if ($('a[href="#dashboard"][aria-expanded="true"]').length && ws.readyState == 1) {
-            getSysInfo();
-        }
+        getSysInfo();
     }, 5000);
 
     moment.updateLocale('en', {
@@ -292,6 +291,62 @@ $(document).ready(function () {
     });
 
     $(document).on('click', '.cancel-edit-schedule', cancelEditSchedule);
+
+    memChart = new Chart.Line($('#mem-chart'), {
+        data: {
+            labels: [],
+            datasets: [
+                {
+                    label: "Total",
+                    data: [],
+                    borderWidth: 1,
+                    backgroundColor: [
+                        'rgba(0, 255, 26, 0.4)',
+                    ],
+                },
+                {
+                    label: "Free",
+                    data: [],
+                    borderWidth: 1,
+                    backgroundColor: [
+                        'rgba(38, 0, 255, 0.4)',
+                    ],
+                },
+                {
+                    label: "Min allocated",
+                    data: [],
+                    borderWidth: 1,
+                    backgroundColor: [
+                        'rgba(255, 0, 0, 0.4)',
+                    ],
+                },
+                {
+                    label: "Max allocated",
+                    data: [],
+                    borderWidth: 1,
+                    backgroundColor: [
+                        'rgba(255, 174, 0, 0.4)',
+                    ],
+                }
+            ]
+        },
+        options: {
+            title: {
+                display: true,
+                text: "Memory chart"
+            },
+            tooltips: {
+                mode: 'index',
+                intersect: false,
+                callbacks: {
+                    label: function (t, d) {
+                        var label = d.datasets[t.datasetIndex].label || '';
+                        return `${label}: ${t.yLabel.toString()}KB`;
+                    }
+                }
+            },
+        }
+    });
 });
 
 function cancelEditSchedule() {
@@ -417,7 +472,44 @@ function WebSocketBegin(location) {
                         $('.add-schedule').prop("disabled", !(availableSlots > 0));
                         break;
                     case 'getSysInfo':
-                        console.log(data);
+                        if (data['WiFi']) {
+                            $('#wifi-ssid').text(data['WiFi']['SSID']);
+                            $('#wifi-ip').text(data['WiFi']['localIP']);
+                            $('#wifi-rssi').text(data['WiFi']['RSSI']);
+                        }
+
+                        if (data['SD']) {
+                            $('#sd-total').text(data['SD']['total']);
+                            $('#sd-used').text(data['SD']['used']);
+                            $('#sd-type').text(data['SD']['type']);
+                        }
+
+                        if (data['SPIFFS']) {
+                            $('#spiffs-total').text(data['SPIFFS']['total']);
+                            $('#spiffs-used').text(data['SPIFFS']['used']);
+                        }
+
+                        if (data['heap']) {
+                            var total = Math.floor(parseInt(data['heap']['total']) / 1024);
+                            var free = Math.floor(parseInt(data['heap']['free']) / 1024);
+                            var min = Math.floor(parseInt(data['heap']['min']) / 1024);
+                            var max = Math.floor(parseInt(data['heap']['maxAlloc']) / 1024);
+
+                            $('#mem-total').text(total);
+                            $('#mem-free').text(free);
+                            $('#mem-min').text(min);
+                            $('#mem-max').text(max);
+
+                            memChart.data.labels.push(moment().format("HH:mm:ss"));
+                            memChart.data.datasets[0].data.push(total);
+                            memChart.data.datasets[1].data.push(free);
+                            memChart.data.datasets[2].data.push(min);
+                            memChart.data.datasets[3].data.push(max);
+                            memChart.update();
+                        }
+                        break;
+                    case 'zonesStatus':
+                        
                         break;
                 }
             }
@@ -644,7 +736,7 @@ function getExplanationForSchedule(scheduleObject) {
 
 function addOrEditSchedule() {
     var eventSlot = getSchedule();
-    
+
     if (availableSlots <= 0 && isNaN(eventSlot.evId)) {
         alert("There are no available slots");
         return;
