@@ -197,7 +197,7 @@
             </div>
             <div id="navbar" class="navbar-collapse collapse">
                 <ul class="nav navbar-nav">
-                    <li class="active">
+                    <li>
                         <a href="#dashboard" data-toggle="tab">
                             <span class="fa fa-chart-line"></span>
                             Dashboard
@@ -209,7 +209,7 @@
                             Manual mode
                         </a>
                     </li>
-                    <li>
+                    <li class="active">
                         <a href="#schedule-mode" data-toggle="tab">
                             <span class="fa fa-calendar-plus"></span>
                             Schedule
@@ -258,7 +258,7 @@
         <div class="row">
             <div class="col-md-12 col-no-padding">
                 <div class="tab-content">
-                    <div class="tab-pane active" id="dashboard">
+                    <div class="tab-pane" id="dashboard">
                         <div class="page-header text-center">
                             <h2>Dashboard</h2>
                         </div>
@@ -462,7 +462,7 @@
                             </button>
                         </div>
                     </div>
-                    <div class="tab-pane" id="schedule-mode">
+                    <div class="tab-pane active" id="schedule-mode">
                         <div class="page-header text-center">
                             <h2>Schedule</h2>
                         </div>
@@ -635,6 +635,13 @@
                                             aria-describedby="duration-addon" value="5">
                                         <span class="input-group-addon" id="duration-addon">Min</span>
                                     </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-12 text-center">
+                                <div class="form-group">
+                                    <label>Event title</label>
+                                    <input type="text" class="event-title form-control">
                                 </div>
                             </div>
 
