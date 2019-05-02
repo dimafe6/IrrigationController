@@ -513,8 +513,6 @@ function WebSocketBegin(location) {
                             memChart.data.datasets[3].data.push(max);
                             memChart.update();
                         }
-<<<<<<< HEAD
-=======
                         break;
                     case 'ongoingEvents':
                         $('.zone-panel').removeClass('active');
@@ -535,7 +533,6 @@ function WebSocketBegin(location) {
                                 }
                             });
                         });
->>>>>>> 00990ab50b2dbf2afd9287fe94bc6de158adb5f2
                         break;
                 }
             }
