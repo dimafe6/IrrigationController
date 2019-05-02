@@ -452,7 +452,6 @@ function WebSocketBegin(location) {
             var command = jsonObject.command || null;
             if (null !== command) {
                 var data = jsonObject.data || null;
-                var status = jsonObject.status || false;
                 switch (command) {
                     case 'manualIrrigation':
                         $('#manual-mode .stop-irrigation-btn').show();
@@ -508,8 +507,26 @@ function WebSocketBegin(location) {
                             memChart.update();
                         }
                         break;
-                    case 'zonesStatus':
-                        
+                    case 'ongoingEvents':
+                        $('.zone-panel').removeClass('active');
+                        $('.next-start-date, .next-finish-date, .next-duration, .start-date, .finish-date, .elapsed-time').html("N/A");
+                        $.each(data, function (index, occurence) {
+                            $.each(occurence.zones, function (index, zone) {
+                                var zoneId = index + 1;
+                                var $zonePanelBody = $('div[data-zone="' + zoneId + '"]');
+                                var $zonePanel = $zonePanelBody.closest('.zone-panel');
+                                if (zone && !$zonePanel.hasClass('active')) {
+                                    console.log(occurence.from);
+                                    var startDate = moment.unix(occurence.from);
+                                    var finishDate = moment.unix(occurence.to);
+                                    var elapsed = moment.duration(finishDate - moment(), "milliseconds").format("D[d] H[h] m[m] s[s]");
+                                    $zonePanel.find('.start-date').html(startDate.format('YYYY-MM-DD HH:mm:ss'));
+                                    $zonePanel.find('.finish-date').html(finishDate.format('YYYY-MM-DD HH:mm:ss'));
+                                    $zonePanel.find('.elapsed-time').html(elapsed);
+                                    $zonePanel.addClass('active');
+                                }
+                            });
+                        });
                         break;
                 }
             }
