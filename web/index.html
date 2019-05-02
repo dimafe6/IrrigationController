@@ -13,6 +13,7 @@
     <link rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.6.3/compressed/themes/default.time.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.10.0/fullcalendar.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.min.css" />
     <style type="text/css">
         body {
             background-color: #ddd
@@ -97,6 +98,26 @@
         .dropdown-menu li a {
             cursor: pointer;
         }
+
+        .no-margin {
+            margin: 0 !important;
+        }
+
+        .bg-blue-400 {
+            background-color: #29B6F6;
+            border-color: #29B6F6;
+            color: #fff;
+        }
+
+        .text-size-small {
+            font-size: 12px;
+        }
+
+        .panel[class*=bg-] .text-muted,
+        .panel[class*=bg-] .help-block,
+        .panel[class*=bg-] .help-inline {
+            color: rgba(255, 255, 255, 0.8);
+        }
     </style>
 
     <title>Irrigation controller</title>
@@ -111,6 +132,7 @@
     <script
         src="https://cdnjs.cloudflare.com/ajax/libs/mouse0270-bootstrap-notify/3.1.7/bootstrap-notify.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.10.0/fullcalendar.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.min.js"></script>
     <script type="text/javascript" src="app.js"></script>
 </head>
 
@@ -129,7 +151,7 @@
             </div>
             <div id="navbar" class="navbar-collapse collapse">
                 <ul class="nav navbar-nav">
-                    <li>
+                    <li class="active">
                         <a href="#dashboard" data-toggle="tab">
                             <span class="fa fa-chart-line"></span>
                             Dashboard
@@ -141,13 +163,13 @@
                             Manual mode
                         </a>
                     </li>
-                    <li class="active">
+                    <li>
                         <a href="#schedule-mode" data-toggle="tab">
                             <span class="fa fa-calendar-plus"></span>
                             Schedule
                         </a>
                     </li>
-                    <li >
+                    <li>
                         <a href="#calendar-page" data-toggle="tab">
                             <span class="fa fa-calendar-alt"></span>
                             Calendar
@@ -189,11 +211,57 @@
     <div class="container">
         <div class="row">
             <div class="col-md-12 col-no-padding">
-
                 <div class="tab-content">
-                    <div class="tab-pane" id="dashboard">
+                    <div class="tab-pane active" id="dashboard">
                         <div class="page-header text-center">
                             <h2>Dashboard</h2>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="panel bg-blue-400" style="min-height: 136px;">
+                                <div class="panel-body">
+                                    <h3 class="no-margin">WiFi</h3>
+                                    <div><span class="text-muted">SSID: </span><span id="wifi-ssid">N/A</span></div>
+                                    <div><span class="text-muted">RSSI: </span><span id="wifi-rssi">N/A</span>dB</div>
+                                    <div><span class="text-muted">Local IP: </span><span id="wifi-ip">N/A</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="panel bg-blue-400">
+                                <div class="panel-body">
+                                    <h3 class="no-margin">Memory</h3>
+                                    <div><span class="text-muted">Total: </span><span id="mem-total">N/A</span>KB</div>
+                                    <div><span class="text-muted">Free: </span><span id="mem-free">N/A</span>KB</div>
+                                    <div>
+                                        <span class="text-muted">Min: </span><span id="mem-min">N/A</span>KB
+                                    </div>
+                                    <div>
+                                        <span class="text-muted">Max allocated: </span><span id="mem-max">N/A</span>KB
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="panel bg-blue-400"  style="min-height: 136px;">
+                                <div class="panel-body">
+                                    <h3 class="no-margin">SD card</h3>
+                                    <div><span class="text-muted">Total: </span><span id="sd-total">N/A</span></div>
+                                    <div><span class="text-muted">Used: </span><span id="sd-used">N/A</span></div>
+                                    <div> <span class="text-muted">Type: </span><span id="sd-type">N/A</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="panel bg-blue-400"  style="min-height: 136px;">
+                                <div class="panel-body">
+                                    <h3 class="no-margin">SPIFFS</h3>
+                                    <div><span class="text-muted">Total: </span><span id="spiffs-total">N/A</span></div>
+                                    <div><span class="text-muted">Used: </span><span id="spiffs-used">N/A</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-12">
+                            <canvas id="mem-chart" height="60"></canvas>
                         </div>
                     </div>
                     <div class="tab-pane" id="manual-mode">
@@ -241,7 +309,7 @@
                             </button>
                         </div>
                     </div>
-                    <div class="tab-pane active" id="schedule-mode">
+                    <div class="tab-pane" id="schedule-mode">
                         <div class="page-header text-center">
                             <h2>Schedule</h2>
                         </div>
