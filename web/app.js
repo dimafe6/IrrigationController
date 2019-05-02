@@ -46,6 +46,24 @@ $(document).ready(function () {
         events: function (start, end, timezone, callback) {
             var events = [];
 
+            var processInterval = function (interval, slot) {
+                var occurences = interval.all();
+                for (var i = 0; i < occurences.length; i++) {
+                    occurences[i].minute(slot.minute).hour(slot.hour).second(slot.second || 0);
+                    var startDate = moment(occurences[i]);
+                    if (startDate < moment()) {
+                        continue;
+                    }
+                    var endDate = moment(startDate);
+                    endDate.add(slot.duration, 'm');
+                    events.push({
+                        title: slot.title,
+                        start: startDate,
+                        end: endDate
+                    });
+                };
+            };
+
             if (calendarEvents.slots !== undefined) {
                 $.each(calendarEvents.slots, function (index, slot) {
                     if (slot.enabled) {
@@ -65,7 +83,7 @@ $(document).ready(function () {
                                     endDate.add(slot.duration, 'm');
                                     var startDate = moment(currDate);
                                     events.push({
-                                        title: "Event",
+                                        title: slot.title,
                                         start: startDate,
                                         end: endDate
                                     });
@@ -83,7 +101,7 @@ $(document).ready(function () {
                                     endDate.add(slot.duration, 'm');
                                     var startDate = moment(currDate);
                                     events.push({
-                                        title: "Event",
+                                        title: slot.title,
                                         start: startDate,
                                         end: endDate
                                     });
@@ -93,30 +111,19 @@ $(document).ready(function () {
                                 break;
                             case 2:
                                 var interval = moment(currDate).recur(start, end).every(1).day();
-                                var occurences = interval.all();
-                                for (var i = 0; i < occurences.length; i++) {
-                                    occurences[i].minute(slot.minute).hour(slot.hour);
-                                    var startDate = moment(occurences[i]);
-                                    if (startDate < moment()) {
-                                        continue;
-                                    }
-                                    var endDate = moment(startDate);
-                                    endDate.add(slot.duration, 'm');
-                                    events.push({
-                                        title: "Event",
-                                        start: startDate,
-                                        end: endDate
-                                    });
-                                };
+                                processInterval(interval, slot);
                                 break;
                             case 3:
-
+                                var interval = moment(currDate).recur(start, end).every(slot.days).day();
+                                processInterval(interval, slot);
                                 break;
                             case 4:
-
+                                var interval = moment(currDate).recur(start, end).every(weekNames[slot.dayOfWeek]).dayOfWeek();
+                                processInterval(interval, slot);
                                 break;
                             case 5:
-
+                                var interval = moment(currDate).recur(start, end).every(slot.dayOfMonth).dayOfMonth();
+                                processInterval(interval, slot);
                                 break;
                         }
                     }
@@ -374,7 +381,7 @@ function getSlotById(evId) {
 };
 
 function processSlots(data = null) {
-    calendarEvents = data;
+    calendarEvents = data;    
     var $eventTableBody = $('#events-list tbody');
     if (null !== calendarEvents) {
         $('#calendar').fullCalendar('refetchEvents');
@@ -452,7 +459,6 @@ function WebSocketBegin(location) {
             var command = jsonObject.command || null;
             if (null !== command) {
                 var data = jsonObject.data || null;
-                var status = jsonObject.status || false;
                 switch (command) {
                     case 'manualIrrigation':
                         $('#manual-mode .stop-irrigation-btn').show();
@@ -507,6 +513,29 @@ function WebSocketBegin(location) {
                             memChart.data.datasets[3].data.push(max);
                             memChart.update();
                         }
+<<<<<<< HEAD
+=======
+                        break;
+                    case 'ongoingEvents':
+                        $('.zone-panel').removeClass('active');
+                        $('.next-start-date, .next-finish-date, .next-duration, .start-date, .finish-date, .elapsed-time').html("N/A");
+                        $.each(data, function (index, occurence) {
+                            $.each(occurence.zones, function (index, zone) {
+                                var zoneId = index + 1;
+                                var $zonePanelBody = $('div[data-zone="' + zoneId + '"]');
+                                var $zonePanel = $zonePanelBody.closest('.zone-panel');
+                                if (zone && !$zonePanel.hasClass('active')) {
+                                    var startDate = moment.unix(occurence.from);
+                                    var finishDate = moment.unix(occurence.to);
+                                    var elapsed = moment.duration(finishDate - moment(), "milliseconds").format("D[d] H[h] m[m] s[s]");
+                                    $zonePanel.find('.start-date').html(startDate.format('YYYY-MM-DD HH:mm:ss'));
+                                    $zonePanel.find('.finish-date').html(finishDate.format('YYYY-MM-DD HH:mm:ss'));
+                                    $zonePanel.find('.elapsed-time').html(elapsed);
+                                    $zonePanel.addClass('active');
+                                }
+                            });
+                        });
+>>>>>>> 00990ab50b2dbf2afd9287fe94bc6de158adb5f2
                         break;
                 }
             }
@@ -562,7 +591,7 @@ function getSchedule() {
 
     eventSlot.duration = parseInt($scheduleBlock.find('.duration').val());
     eventSlot.zones = checked;
-
+    eventSlot.title = $('.event-title').val();
     // If edit event
     if (!isNaN(evId)) {
         eventSlot.evId = evId;
@@ -661,6 +690,7 @@ function getSchedule() {
 function getExplanationForSchedule(scheduleObject) {
     let zonesString = scheduleObject.zones.join(', ');
     let durationStr = moment.duration(scheduleObject.duration, 'minutes').format('HH[h]:mm[m]');
+    let title = "";
 
     var getExampleText = function (currDate, scheduleObject) {
         var endDate = moment(currDate);
@@ -674,6 +704,8 @@ function getExplanationForSchedule(scheduleObject) {
             var currDate = moment();
             currDate.minute(scheduleObject.minute).second(scheduleObject.second);
             explanationString = `Irrigation for zone(s) ${zonesString} every hour on ${currDate.format('mm[m]:ss[s]')} with a duration of ${durationStr}\n`;
+            title = "Every hour";
+
             for (var i = 0; i < 3; i++) {
                 currDate.add(1, 'h');
                 explanationString += getExampleText(currDate, scheduleObject);
@@ -683,6 +715,8 @@ function getExplanationForSchedule(scheduleObject) {
             var currDate = moment();
             currDate.minute(scheduleObject.minute).second(scheduleObject.second);
             explanationString = `Irrigation for zone(s) ${zonesString} every ${scheduleObject.hours} hours on ${currDate.format('mm[m]:ss[s]')} with a duration of ${durationStr}\n`;
+            title = `Every ${scheduleObject.hours} hours`;
+
             for (var i = 0; i < 3; i++) {
                 currDate.add(scheduleObject.hours, 'h');
                 explanationString += getExampleText(currDate, scheduleObject);
@@ -692,6 +726,8 @@ function getExplanationForSchedule(scheduleObject) {
             var currDate = moment();
             currDate.hour(scheduleObject.hour).minute(scheduleObject.minute).second(0);
             explanationString = `Irrigation for zone(s) ${zonesString} every day on ${currDate.format('hh[h]:mm[m][00s]')} with a duration of ${durationStr}\n`;
+            title = `Every day`;
+
             for (var i = 0; i < 3; i++) {
                 currDate.add(1, 'd');
                 explanationString += getExampleText(currDate, scheduleObject);
@@ -701,6 +737,8 @@ function getExplanationForSchedule(scheduleObject) {
             var currDate = moment();
             currDate.hour(scheduleObject.hour).minute(scheduleObject.minute).second(0);
             explanationString = `Irrigation for zone(s) ${zonesString} every ${scheduleObject.days} days on ${currDate.format('hh[h]:mm[m][00s]')} with a duration of ${durationStr}\n`;
+            title = `Every ${scheduleObject.days} days`;
+
             for (var i = 0; i < 3; i++) {
                 currDate.add(scheduleObject.days, 'd');
                 explanationString += getExampleText(currDate, scheduleObject);
@@ -711,6 +749,8 @@ function getExplanationForSchedule(scheduleObject) {
             var dayOfWeekStr = weekNames[scheduleObject.dayOfWeek - 1];
             currDate.day(scheduleObject.dayOfWeek - 1).hour(scheduleObject.hour).minute(scheduleObject.minute).second(0);
             explanationString = `Irrigation for zone(s) ${zonesString} every ${dayOfWeekStr} on ${currDate.format('hh[h]:mm[m][00s]')} with a duration of ${durationStr}\n`;
+            title = `Every ${dayOfWeekStr}`;
+
             for (var i = 0; i < 3; i++) {
                 currDate.add(1, 'w');
                 explanationString += getExampleText(currDate, scheduleObject);
@@ -721,12 +761,19 @@ function getExplanationForSchedule(scheduleObject) {
             currDate.hour(scheduleObject.hour).minute(scheduleObject.minute).second(0);
             currDate.date(scheduleObject.dayOfMonth);
             explanationString = `Irrigation for zone(s) ${zonesString} every month on ${currDate.format('hh[h]:mm[m][00s]')} with a duration of ${durationStr}\n`;
+            title = `Every month`;
+
             for (var i = 0; i < 3; i++) {
                 currDate.add(1, 'M');
                 explanationString += getExampleText(currDate, scheduleObject);
             }
             break;
     }
+
+    var total = parseInt(calendarEvents.occupied) || 0;
+    title = `${total}. ${title}`;
+
+    $('.event-title').val(title);
 
     return explanationString;
 }

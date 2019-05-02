@@ -109,6 +109,55 @@
             color: #fff;
         }
 
+<<<<<<< HEAD
+=======
+        .zone-panel {
+            background-color: #c7c7c7;
+            border-color: #c7c7c7;
+            color: #fff;
+        }
+
+        .zone-panel.active {
+            background-color: #66BB6A;
+            border-color: #66BB6A;
+            color: #fff;
+        }
+
+        .zone-panel .badge {
+            padding: 8px;
+            border-radius: 14px;
+            margin: 4px;
+            float: right;
+            background-color: #ffffff94
+        }
+
+        .zone-panel .running-info {
+            display: none;
+        }
+
+        .zone-panel .next-start {
+            display: block;
+        }
+
+        .zone-panel.active .next-start {
+            display: none;
+        }
+
+        .zone-panel.active .running-info {
+            display: block;
+        }
+
+        .zone-panel.active .badge i:before {
+            content: "\f111";
+            color: green;
+        }
+
+        .zone-panel .badge i:before {
+            content: "\f111";
+            color: transparent;
+        }
+
+>>>>>>> 00990ab50b2dbf2afd9287fe94bc6de158adb5f2
         .text-size-small {
             font-size: 12px;
         }
@@ -216,6 +265,7 @@
                         <div class="page-header text-center">
                             <h2>Dashboard</h2>
                         </div>
+<<<<<<< HEAD
                         <div class="col-md-3">
                             <div class="panel bg-blue-400" style="min-height: 136px;">
                                 <div class="panel-body">
@@ -257,11 +307,165 @@
                                     <h3 class="no-margin">SPIFFS</h3>
                                     <div><span class="text-muted">Total: </span><span id="spiffs-total">N/A</span></div>
                                     <div><span class="text-muted">Used: </span><span id="spiffs-used">N/A</span></div>
+=======
+                        <div class="col-md-12" id="zone-statuses">
+                            <div class="col-md-3 col-sm-6">
+                                <div class="panel zone-panel">
+                                    <div class="heading-elements">
+                                        <span class="badge bg-info heading-text">
+                                            <i class="fa"></i>
+                                        </span>
+                                    </div>
+                                    <div class="panel-body" data-zone="1">
+                                        <h3 class="no-margin">Zone 1</h3>
+                                        <div class="next-start">
+                                            <div><span>Next start in: </span><span class="next-start-date">N/A</span>
+                                            </div>
+                                            <div><span>Next finish in: </span><span class="next-finish-date">N/A</span>
+                                            </div>
+                                            <div><span>Duration: </span><span class="next-duration">N/A</span></div>
+                                        </div>
+                                        <div class="running-info">
+                                            <div><span>Started in: </span><span class="start-date">N/A</span></div>
+                                            <div><span>Finish in: </span><span class="finish-date">N/A</span></div>
+                                            <div><span>Elapsed: </span><span class="elapsed-time">N/A</span></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="panel zone-panel">
+                                    <div class="heading-elements">
+                                        <span class="badge bg-info heading-text">
+                                            <i class="fa"></i>
+                                        </span>
+                                    </div>
+                                    <div class="panel-body" data-zone="2">
+                                        <h3 class="no-margin">Zone 2</h3>
+                                        <div class="next-start">
+                                            <div><span>Next start in: </span><span class="next-start-date">N/A</span>
+                                            </div>
+                                            <div><span>Next finish in: </span><span class="next-finish-date">N/A</span>
+                                            </div>
+                                            <div><span>Duration: </span><span class="next-duration">N/A</span></div>
+                                        </div>
+                                        <div class="running-info">
+                                            <div><span>Started in: </span><span class="start-date">N/A</span></div>
+                                            <div><span>Finish in: </span><span class="finish-date">N/A</span></div>
+                                            <div><span>Elapsed: </span><span class="elapsed-time">N/A</span></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="panel zone-panel">
+                                    <div class="heading-elements">
+                                        <span class="badge bg-info heading-text">
+                                            <i class="fa"></i>
+                                        </span>
+                                    </div>
+                                    <div class="panel-body" data-zone="3">
+                                        <h3 class="no-margin">Zone 3</h3>
+                                        <div class="next-start">
+                                            <div><span>Next start in: </span><span class="next-start-date">N/A</span>
+                                            </div>
+                                            <div><span>Next finish in: </span><span class="next-finish-date">N/A</span>
+                                            </div>
+                                            <div><span>Duration: </span><span class="next-duration">N/A</span></div>
+                                        </div>
+                                        <div class="running-info">
+                                            <div><span>Started in: </span><span class="start-date">N/A</span></div>
+                                            <div><span>Finish in: </span><span class="finish-date">N/A</span></div>
+                                            <div><span>Elapsed: </span><span class="elapsed-time">N/A</span></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="panel zone-panel">
+                                    <div class="heading-elements">
+                                        <span class="badge bg-info heading-text">
+                                            <i class="fa"></i>
+                                        </span>
+                                    </div>
+                                    <div class="panel-body" data-zone="4">
+                                        <h3 class="no-margin">Zone 4</h3>
+                                        <div class="next-start">
+                                            <div><span>Next start in: </span><span class="next-start-date">N/A</span>
+                                            </div>
+                                            <div><span>Next finish in: </span><span class="next-finish-date">N/A</span>
+                                            </div>
+                                            <div><span>Duration: </span><span class="next-duration">N/A</span></div>
+                                        </div>
+                                        <div class="running-info">
+                                            <div><span>Started in: </span><span class="start-date">N/A</span></div>
+                                            <div><span>Finish in: </span><span class="finish-date">N/A</span></div>
+                                            <div><span>Elapsed: </span><span class="elapsed-time">N/A</span></div>
+                                        </div>
+                                    </div>
+>>>>>>> 00990ab50b2dbf2afd9287fe94bc6de158adb5f2
                                 </div>
                             </div>
                         </div>
                         <div class="col-md-12">
+<<<<<<< HEAD
                             <canvas id="mem-chart" height="60"></canvas>
+=======
+                            <div class="col-md-3 col-sm-6">
+                                <div class="panel bg-blue-400" style="min-height: 136px;">
+                                    <div class="panel-body">
+                                        <h3 class="no-margin">WiFi</h3>
+                                        <div><span class="text-muted">SSID: </span><span id="wifi-ssid">N/A</span></div>
+                                        <div><span class="text-muted">RSSI: </span><span id="wifi-rssi">N/A</span>dB
+                                        </div>
+                                        <div><span class="text-muted">Local IP: </span><span id="wifi-ip">N/A</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="panel bg-blue-400">
+                                    <div class="panel-body">
+                                        <h3 class="no-margin">Memory</h3>
+                                        <div><span class="text-muted">Total: </span><span id="mem-total">N/A</span>KB
+                                        </div>
+                                        <div><span class="text-muted">Free: </span><span id="mem-free">N/A</span>KB
+                                        </div>
+                                        <div>
+                                            <span class="text-muted">Min: </span><span id="mem-min">N/A</span>KB
+                                        </div>
+                                        <div>
+                                            <span class="text-muted">Max allocated: </span><span
+                                                id="mem-max">N/A</span>KB
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="panel bg-blue-400" style="min-height: 136px;">
+                                    <div class="panel-body">
+                                        <h3 class="no-margin">SD card</h3>
+                                        <div><span class="text-muted">Total: </span><span id="sd-total">N/A</span></div>
+                                        <div><span class="text-muted">Used: </span><span id="sd-used">N/A</span></div>
+                                        <div> <span class="text-muted">Type: </span><span id="sd-type">N/A</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="panel bg-blue-400" style="min-height: 136px;">
+                                    <div class="panel-body">
+                                        <h3 class="no-margin">SPIFFS</h3>
+                                        <div><span class="text-muted">Total: </span><span id="spiffs-total">N/A</span>
+                                        </div>
+                                        <div><span class="text-muted">Used: </span><span id="spiffs-used">N/A</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-12 ">
+                            <canvas id="mem-chart"></canvas>
+>>>>>>> 00990ab50b2dbf2afd9287fe94bc6de158adb5f2
                         </div>
                     </div>
                     <div class="tab-pane" id="manual-mode">
@@ -482,6 +686,13 @@
                                             aria-describedby="duration-addon" value="5">
                                         <span class="input-group-addon" id="duration-addon">Min</span>
                                     </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-12 text-center">
+                                <div class="form-group">
+                                    <label>Event title</label>
+                                    <input type="text" class="event-title form-control">
                                 </div>
                             </div>
 

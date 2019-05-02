@@ -81,6 +81,14 @@ void loop()
   listenRadio();
 }
 
+void WSTextAll(String msg)
+{
+  if (ws.count() > 0)
+  {
+    ws.textAll(msg);
+  }
+}
+
 void initWebServer()
 {
   ws.onEvent(onWsEvent);
@@ -141,9 +149,12 @@ void initWebServer()
 
 void sendDocumentToWs(const JsonDocument &doc)
 {
-  String msg;
-  serializeJson(doc, msg);
-  ws.textAll(msg);
+  if (ws.count() > 0)
+  {
+    String msg;
+    serializeJson(doc, msg);
+    ws.textAll(msg);
+  }
 }
 
 bool openScheduleFromSD(DynamicJsonDocument &doc)
@@ -232,7 +243,7 @@ void sendSlotsToWS()
 
 void sendSysInfoToWS()
 {
-  DynamicJsonDocument sysInfo(300);
+  DynamicJsonDocument sysInfo(512);
   sysInfo["command"] = "getSysInfo";
 
   JsonObject data = sysInfo.createNestedObject("data");
@@ -424,7 +435,7 @@ void stopManualIrrigation()
 {
   removeEvent(MANUAL_IRRIGATION_EVENT_ID);
   SD.remove(MANUAL_IRRIGATION_FILE_NAME);
-  ws.textAll(MANUAL_IRRIGATION_STOP);
+  WSTextAll(MANUAL_IRRIGATION_STOP);
 }
 
 void addOrEditSchedule(const JsonObject &eventData)
@@ -488,7 +499,7 @@ void addOrEditSchedule(const JsonObject &eventData)
 
   sendSlotsToWS();
 
-  ws.textAll(SCHEDULE_ADD_EDIT);
+  WSTextAll(SCHEDULE_ADD_EDIT);
 }
 
 bool addEventToCalendar(byte evId, const JsonObject &eventData)
@@ -603,7 +614,7 @@ void addManualEventToCalendar(const JsonObject &eventData)
 
     serializeJson(manual, manualFile);
     manualFile.close();
-    ws.textAll(MANUAL_IRRIGATION_STATUS_TRUE);
+    WSTextAll(MANUAL_IRRIGATION_STATUS_TRUE);
   }
 }
 
@@ -904,28 +915,48 @@ void checkCalendar()
 
     Chronos::Event::Occurrence occurrenceList[CALENDAR_OCCURRENCES_LIST_SIZE];
     int numOngoing = MyCalendar.listOngoing(CALENDAR_OCCURRENCES_LIST_SIZE, occurrenceList, Chronos::DateTime::now());
+
+    DynamicJsonDocument answer(4000);
+
     if (numOngoing)
     {
       for (int i = 0; i < numOngoing; i++)
       {
+        Chronos::DateTime start = occurrenceList[i].start;
+        Chronos::DateTime finish = occurrenceList[i].finish;
+
         Serial.println("");
         Serial.print("**** Event: ");
         Serial.print((int)occurrenceList[i].id);
         Serial.print(": ");
-        (Chronos::DateTime::now() - occurrenceList[i].finish).printTo(Serial);
+        (Chronos::DateTime::now() - finish).printTo(Serial);
         Serial.println("");
 
         if ((int)occurrenceList[i].id == MANUAL_IRRIGATION_EVENT_ID)
         {
           //Manual irrigation
-          ws.textAll(MANUAL_IRRIGATION_STATUS_TRUE);
+          WSTextAll(MANUAL_IRRIGATION_STATUS_TRUE);
           if ((Chronos::DateTime::now() - occurrenceList[i].finish) <= 1)
           {
             stopManualIrrigation();
           }
         }
+
+        answer["command"] = "ongoingEvents";
+        JsonArray data = answer.createNestedArray("data");
+        JsonObject occurrence = data.createNestedObject();
+        JsonArray ocurenceZones = occurrence.createNestedArray("zones");
+        ocurenceZones.add(occurrenceList[i].zones.zone1);
+        ocurenceZones.add(occurrenceList[i].zones.zone2);
+        ocurenceZones.add(occurrenceList[i].zones.zone3);
+        ocurenceZones.add(occurrenceList[i].zones.zone4);
+        occurrence["from"] = start.asEpoch();
+        occurrence["to"] = finish.asEpoch();
+        data.add(occurrence);
       }
     }
+
+    sendDocumentToWs(answer);
   }
 }
 
