@@ -356,6 +356,10 @@ $(document).ready(function () {
     });
 });
 
+function getMomentFromEpoch(epoch) {
+    return moment(moment.unix(epoch).utc().format("YYYY-MM-DD HH:mm:ss"));
+}
+
 function cancelEditSchedule() {
     $('#evId').val('');
     $('#events-list tbody tr').removeClass('bg-warning');
@@ -381,7 +385,7 @@ function getSlotById(evId) {
 };
 
 function processSlots(data = null) {
-    calendarEvents = data;    
+    calendarEvents = data;
     var $eventTableBody = $('#events-list tbody');
     if (null !== calendarEvents) {
         $('#calendar').fullCalendar('refetchEvents');
@@ -523,9 +527,9 @@ function WebSocketBegin(location) {
                                 var $zonePanelBody = $('div[data-zone="' + zoneId + '"]');
                                 var $zonePanel = $zonePanelBody.closest('.zone-panel');
                                 if (zone && !$zonePanel.hasClass('active')) {
-                                    var startDate = moment.unix(occurence.from);
-                                    var finishDate = moment.unix(occurence.to);
-                                    var elapsed = moment.duration(finishDate - moment(), "milliseconds").format("D[d] H[h] m[m] s[s]");
+                                    var startDate = getMomentFromEpoch(occurence.from);
+                                    var finishDate = getMomentFromEpoch(occurence.to);
+                                    var elapsed = moment.duration(occurence.elapsed, "seconds").format("D[d] H[h] m[m] s[s]");
                                     $zonePanel.find('.start-date').html(startDate.format('YYYY-MM-DD HH:mm:ss'));
                                     $zonePanel.find('.finish-date').html(finishDate.format('YYYY-MM-DD HH:mm:ss'));
                                     $zonePanel.find('.elapsed-time').html(elapsed);

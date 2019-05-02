@@ -916,20 +916,15 @@ void checkCalendar()
     Chronos::Event::Occurrence occurrenceList[CALENDAR_OCCURRENCES_LIST_SIZE];
     int numOngoing = MyCalendar.listOngoing(CALENDAR_OCCURRENCES_LIST_SIZE, occurrenceList, Chronos::DateTime::now());
 
-    DynamicJsonDocument answer(4000);
-
     if (numOngoing)
     {
       for (int i = 0; i < numOngoing; i++)
       {
-        Chronos::DateTime start = occurrenceList[i].start;
-        Chronos::DateTime finish = occurrenceList[i].finish;
-
         Serial.println("");
         Serial.print("**** Event: ");
         Serial.print((int)occurrenceList[i].id);
         Serial.print(": ");
-        (Chronos::DateTime::now() - finish).printTo(Serial);
+        (Chronos::DateTime::now() - occurrenceList[i].finish).printTo(Serial);
         Serial.println("");
 
         if ((int)occurrenceList[i].id == MANUAL_IRRIGATION_EVENT_ID)
@@ -941,22 +936,33 @@ void checkCalendar()
             stopManualIrrigation();
           }
         }
-
-        answer["command"] = "ongoingEvents";
-        JsonArray data = answer.createNestedArray("data");
-        JsonObject occurrence = data.createNestedObject();
-        JsonArray ocurenceZones = occurrence.createNestedArray("zones");
-        ocurenceZones.add(occurrenceList[i].zones.zone1);
-        ocurenceZones.add(occurrenceList[i].zones.zone2);
-        ocurenceZones.add(occurrenceList[i].zones.zone3);
-        ocurenceZones.add(occurrenceList[i].zones.zone4);
-        occurrence["from"] = start.asEpoch();
-        occurrence["to"] = finish.asEpoch();
-        data.add(occurrence);
       }
     }
 
-    sendDocumentToWs(answer);
+    if (ws.count() > 0)
+    {
+      DynamicJsonDocument answer(4000);
+      answer["command"] = "ongoingEvents";
+      JsonArray data = answer.createNestedArray("data");
+      
+      if (numOngoing)
+      {
+        for (int i = 0; i < numOngoing; i++)
+        {
+          JsonObject occurrence = data.createNestedObject();
+          JsonArray ocurenceZones = occurrence.createNestedArray("zones");
+          ocurenceZones.add(occurrenceList[i].zones.zone1);
+          ocurenceZones.add(occurrenceList[i].zones.zone2);
+          ocurenceZones.add(occurrenceList[i].zones.zone3);
+          ocurenceZones.add(occurrenceList[i].zones.zone4);
+          occurrence["from"] = occurrenceList[i].start.asEpoch();
+          occurrence["to"] = occurrenceList[i].finish.asEpoch();
+          occurrence["elapsed"] = (Chronos::DateTime::now() - occurrenceList[i].finish).totalSeconds();
+        }
+      }
+
+      sendDocumentToWs(answer);
+    }
   }
 }
 
