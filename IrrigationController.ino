@@ -8,8 +8,6 @@
 #include "SD.h"
 #include <ESPAsyncWebServer.h>
 #include <SPIFFSEditor.h>
-#include <Wire.h>
-#include <RtcDS3231.h>
 #include <Time.h>
 #include <Update.h>
 #include "src/Chronos/src/Chronos.h"
@@ -20,7 +18,6 @@ AsyncWebSocket ws("/ws");
 HardwareSerial HC12(1);
 HardwareSerial SIM800(2);
 WiFiClient client;
-RtcDS3231<TwoWire> RTC(Wire);
 DefineCalendarType(Calendar, CALENDAR_MAX_NUM_EVENTS);
 Calendar MyCalendar;
 AsyncWebHandler *spiffsEditorHandler;
@@ -845,46 +842,13 @@ void initSerial()
 
 void initRtc()
 {
-  RTC.Begin();
-  RTC.Enable32kHzPin(false);
-  RTC.SetSquareWavePin(DS3231SquareWavePin_ModeAlarmBoth);
-  RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
-
-  if (!RTC.IsDateTimeValid())
-  {
-    Serial.println("RTC lost confidence in the DateTime!");
-    RTC.SetDateTime(compiled);
-  }
-
-  if (!RTC.GetIsRunning())
-  {
-    Serial.println("RTC was not actively running, starting now");
-    RTC.SetIsRunning(true);
-  }
-
-  RtcDateTime now = RTC.GetDateTime();
-  if (now < compiled)
-  {
-    Serial.println("RTC is older than compile time!  (Updating DateTime)");
-    RTC.SetDateTime(compiled);
-  }
-
-  setSyncProvider(getTime);
-  Chronos::DateTime::now().printTo(Serial);
-
-  Serial.println("");
-  Serial.print("Free heap: ");
-  Serial.print(ESP.getFreeHeap());
-  Serial.println("");
-}
-
-static time_t getTime()
-{
-  return RTC.GetDateTime().Epoch32Time();
+  sendATCommand("AT+CLTS?");
 }
 
 void checkCalendar()
 {
+  Chronos::DateTime nowTime(Chronos::DateTime::now());
+  nowTime.printTo(Serial);
   if (millis() - calendarLastCheck >= CALENDAR_CHECK_INTERVAL)
   {
     calendarLastCheck = millis();
@@ -944,7 +908,7 @@ void checkCalendar()
       DynamicJsonDocument answer(4000);
       answer["command"] = "ongoingEvents";
       JsonArray data = answer.createNestedArray("data");
-      
+
       if (numOngoing)
       {
         for (int i = 0; i < numOngoing; i++)
@@ -1184,6 +1148,37 @@ void listenSIM800()
         currentBalance = msgBalance.toFloat();
         Serial.println("USSD: " + String(currentBalance));
       }
+    }
+    // GSM Network time handler
+    else if (response.startsWith("+CLTS:"))
+    {
+      String clts;
+      clts.reserve(12);
+      clts = response.substring(7);
+      if (clts.toInt() == 0)
+      {
+        sendATCommand("AT+CLTS=1");
+        sendATCommand("AT+CLTS?");
+      }
+      else if (clts.toInt() == 1)
+      {
+        sendATCommand("AT&W");
+        sendATCommand("AT+CCLK?");
+      }
+    }
+    // GSM RTC Handler
+    else if (response.startsWith("+CCLK:"))
+    {
+      String cclk;
+      cclk.reserve(32);
+      uint8_t year = cclk.substring(0, 2).toInt();
+      uint8_t month = cclk.substring(3, 5).toInt();
+      uint8_t day = cclk.substring(6, 8).toInt();
+      uint8_t hour = cclk.substring(9, 11).toInt();
+      uint8_t minute = cclk.substring(12, 14).toInt();
+      uint8_t second = cclk.substring(15, 17).toInt();
+      Serial.printf("%d-%d-%d %d-%d-%d", year, month, day, hour, minute, second);
+      setTime(hour,minute,second,day, month, year);
     }
   }
 
