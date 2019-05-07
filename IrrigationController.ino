@@ -3,6 +3,7 @@
 #include <ArduinoJson.h>
 #include "ThingSpeak.h"
 #include <WiFi.h>
+#include <WiFiUdp.h>
 #include <FS.h>
 #include <SPIFFS.h>
 #include "SD.h"
@@ -10,6 +11,7 @@
 #include <SPIFFSEditor.h>
 #include <Time.h>
 #include <Update.h>
+#include <NTPClient.h>
 #include "src/Chronos/src/Chronos.h"
 
 SPIClass spiSD(HSPI);
@@ -22,6 +24,8 @@ DefineCalendarType(Calendar, CALENDAR_MAX_NUM_EVENTS);
 Calendar MyCalendar;
 AsyncWebHandler *spiffsEditorHandler;
 AsyncWebHandler *sdEditorHandler;
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "ua.pool.ntp.org");
 
 enum Periodicity
 {
@@ -48,6 +52,7 @@ struct WeatherData
 long thingSpeakLastUpdate;
 long HC12LastUpdate;
 long calendarLastCheck;
+long RTCLastSync;
 
 int currentBalance = NULL;
 bool shouldReboot = false;
@@ -56,7 +61,6 @@ bool manualIrrigationRunning = false;
 void setup()
 {
   initSerial();
-  initRtc();
   initSD();
   loadCalendarFromSD();
   loadManualIrrigationFromSD();
@@ -73,9 +77,10 @@ void loop()
     delay(100);
     ESP.restart();
   }
+  syncRTC();
   listenSIM800();
   checkCalendar();
-  listenRadio();
+  listenRadio();  
 }
 
 void WSTextAll(String msg)
@@ -821,7 +826,7 @@ void initSD()
   Serial.printf("Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
   Serial.printf("Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
 
-  //updateFromFS(SD);
+  updateFromFS(SD);
 }
 
 void initSPIFFS()
@@ -838,18 +843,12 @@ void initSerial()
   HC12.begin(BAUD_RATE, SERIAL_8N1, HC_12_RX, HC_12_TX);
   SIM800.begin(BAUD_RATE);
   //sendATCommand("AT+CUSD=1,\"*111#\"");
-}
-
-void initRtc()
-{
-  sendATCommand("AT+CLTS?");
+  sendATCommand("AT");
 }
 
 void checkCalendar()
 {
-  Chronos::DateTime nowTime(Chronos::DateTime::now());
-  nowTime.printTo(Serial);
-  if (millis() - calendarLastCheck >= CALENDAR_CHECK_INTERVAL)
+  if (dateIsValid() && (millis() - calendarLastCheck >= CALENDAR_CHECK_INTERVAL))
   {
     calendarLastCheck = millis();
 
@@ -1056,6 +1055,8 @@ void WiFiEvent(WiFiEvent_t event)
     break;
   case SYSTEM_EVENT_STA_DISCONNECTED:
     Serial.println("Disconnected from WiFi access point");
+    setSyncProvider(nullptr);
+    timeClient.end();
     WiFi.reconnect();
     break;
   case SYSTEM_EVENT_STA_AUTHMODE_CHANGE:
@@ -1066,6 +1067,10 @@ void WiFiEvent(WiFiEvent_t event)
     Serial.println(WiFi.SSID());
     Serial.println(WiFi.localIP());
     ThingSpeak.begin(client);
+    timeClient.begin();
+    timeClient.forceUpdate();
+    setSyncProvider(getTime);
+    setSyncInterval(1);
     break;
   case SYSTEM_EVENT_STA_LOST_IP:
     Serial.println("Lost IP address and IP address is reset to 0");
@@ -1122,12 +1127,41 @@ void WiFiEvent(WiFiEvent_t event)
   }
 }
 
+static time_t getTime()
+{
+  return timeClient.getEpochTime();
+}
+
+bool dateIsValid()
+{
+  return year() >= 2019;
+}
+
+void syncRTC()
+{
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    //If current year < 2019 then update RTC every 2 sec else update RTC every RTC_SYNC_INTERVAL
+    if (millis() - RTCLastSync >= (!dateIsValid() ? 2000 : RTC_SYNC_INTERVAL))
+    {
+      sendATCommand("AT+CCLK?");
+      RTCLastSync = millis();
+    }
+  } else {
+    timeClient.update();
+  }
+}
+
 void listenSIM800()
 {
+  if (Serial.available())
+  {
+    SIM800.write(Serial.read());
+  }
+
   if (SIM800.available())
   {
     String response;
-    response.reserve(512);
     response = SIM800.readString();
     response.trim();
     if (response != "")
@@ -1136,7 +1170,7 @@ void listenSIM800()
     }
 
     // USSD Handler
-    if (response.startsWith("+CUSD:"))
+    if (response.indexOf("+CUSD:") > -1)
     {
       // Check balance
       if (response.indexOf("Balans") > -1)
@@ -1149,42 +1183,23 @@ void listenSIM800()
         Serial.println("USSD: " + String(currentBalance));
       }
     }
-    // GSM Network time handler
-    else if (response.startsWith("+CLTS:"))
-    {
-      String clts;
-      clts.reserve(12);
-      clts = response.substring(7);
-      if (clts.toInt() == 0)
-      {
-        sendATCommand("AT+CLTS=1");
-        sendATCommand("AT+CLTS?");
-      }
-      else if (clts.toInt() == 1)
-      {
-        sendATCommand("AT&W");
-        sendATCommand("AT+CCLK?");
-      }
-    }
+
     // GSM RTC Handler
-    else if (response.startsWith("+CCLK:"))
+    if (response.indexOf("+CCLK:") > -1)
     {
       String cclk;
       cclk.reserve(32);
+      cclk = response.substring(response.indexOf("+CCLK:") + 8);
       uint8_t year = cclk.substring(0, 2).toInt();
       uint8_t month = cclk.substring(3, 5).toInt();
       uint8_t day = cclk.substring(6, 8).toInt();
       uint8_t hour = cclk.substring(9, 11).toInt();
       uint8_t minute = cclk.substring(12, 14).toInt();
       uint8_t second = cclk.substring(15, 17).toInt();
-      Serial.printf("%d-%d-%d %d-%d-%d", year, month, day, hour, minute, second);
-      setTime(hour,minute,second,day, month, year);
+      setTime(hour, minute, second, day, month, year);
+      Serial.println("RTC synchronized. New time is: ");
+      Chronos::DateTime::now().printTo(Serial);
     }
-  }
-
-  if (Serial.available())
-  {
-    SIM800.write(Serial.read());
   }
 }
 

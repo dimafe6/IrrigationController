@@ -23,8 +23,8 @@
 /* Thing Speak configuration */
 #define THING_SPEAK_WRITE_INTERVAL 900000
 
-/* RTC pins */
-#define RTC_SQW_PIN 34
+/* RTC */
+#define RTC_SYNC_INTERVAL 60000
 
 /* Calendar configuration */
 #define CALENDAR_OCCURRENCES_LIST_SIZE 25
