@@ -5,20 +5,11 @@
 #define HC_12_UPDATE_INTERVAL 2000
 #define PRINTLN(...)  Serial.println(__VA_ARGS__)
 
-/* LCD configuration */
-#define TFT_MISO 19 // 21 on LCD
-#define TFT_MOSI 23 // 19 on LCD
-#define TFT_SCLK 18 // 23 on LCD
-#define TFT_CS 15   // 24 on LCD
-#define TFT_DC 2    // 15 on LCD
-#define TFT_RST 4   // 13 on LCD
-#define TOUCH_CS 25 // 26 on LCD
-
 /* Pins for load control */
-#define LOAD_RELAY_1 35  // Relay 1
-#define LOAD_RELAY_2 33  // Relay 2
-#define LOAD_MOSFET_1 32 // Mosfet 1
-#define LOAD_MOSFET_2 13 // Mosfet 2
+#define LOAD_RELAY_1 21  // Relay 1
+#define LOAD_RELAY_2 22  // Relay 2
+#define LOAD_MOSFET_1 18 // Mosfet 1
+#define LOAD_MOSFET_2 19 // Mosfet 2
 
 /* Thing Speak configuration */
 #define THING_SPEAK_WRITE_INTERVAL 900000

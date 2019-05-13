@@ -520,7 +520,7 @@ function WebSocketBegin(location) {
                         break;
                     case 'ongoingEvents':
                         $('.zone-panel').removeClass('active');
-                        $('.next-start-date, .next-finish-date, .next-duration, .start-date, .finish-date, .elapsed-time').html("N/A");
+                        $('.start-date, .finish-date, .elapsed-time').html("N/A");
                         $.each(data, function (index, occurence) {
                             $.each(occurence.zones, function (index, zone) {
                                 var zoneId = index + 1;
@@ -532,8 +532,28 @@ function WebSocketBegin(location) {
                                     var elapsed = moment.duration(occurence.elapsed, "seconds").format("D[d] H[h] m[m] s[s]");
                                     $zonePanel.find('.start-date').html(startDate.format('YYYY-MM-DD HH:mm:ss'));
                                     $zonePanel.find('.finish-date').html(finishDate.format('YYYY-MM-DD HH:mm:ss'));
+                                    $zonePanel.find('.duration').html(moment.duration((finishDate - startDate), "milliseconds").format("D[d] H[h] m[m] s[s]"));
                                     $zonePanel.find('.elapsed-time').html(elapsed);
                                     $zonePanel.addClass('active');
+                                }
+                            });
+                        });
+                        break;
+                    case 'nextEvents':
+                        $('.next-start-date, .next-finish-date, .next-elapsed, .next-duration').html("N/A");
+                        $.each(data, function (index, occurence) {
+                            $.each(occurence.zones, function (index, zone) {
+                                var zoneId = index + 1;
+                                var $zonePanelBody = $('div[data-zone="' + zoneId + '"]:not(.active)');
+                                var $zonePanel = $zonePanelBody.closest('.zone-panel');
+                                if (zone) {
+                                    var startDate = getMomentFromEpoch(occurence.from);
+                                    var finishDate = getMomentFromEpoch(occurence.to);
+                                    var elapsed = moment.duration(occurence.elapsed, "seconds").format("D[d] H[h] m[m] s[s]");
+                                    $zonePanel.find('.next-start-date').html(startDate.format('YYYY-MM-DD HH:mm:ss'));
+                                    $zonePanel.find('.next-finish-date').html(finishDate.format('YYYY-MM-DD HH:mm:ss'));
+                                    $zonePanel.find('.next-duration').html(moment.duration((finishDate - startDate), "milliseconds").format("D[d] H[h] m[m] s[s]"));
+                                    $zonePanel.find('.next-elapsed').html(elapsed);
                                 }
                             });
                         });

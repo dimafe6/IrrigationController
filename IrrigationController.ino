@@ -60,6 +60,7 @@ bool manualIrrigationRunning = false;
 
 void setup()
 {
+  initPins();
   initSerial();
   initSD();
   loadCalendarFromSD();
@@ -80,7 +81,19 @@ void loop()
   syncRTC();
   listenSIM800();
   checkCalendar();
-  listenRadio();  
+  listenRadio();
+}
+
+void initPins()
+{
+  pinMode(LOAD_RELAY_1, OUTPUT);
+  pinMode(LOAD_RELAY_2, OUTPUT);
+  pinMode(LOAD_MOSFET_1, OUTPUT);
+  pinMode(LOAD_MOSFET_2, OUTPUT);
+  digitalWrite(LOAD_RELAY_1, LOW);
+  digitalWrite(LOAD_RELAY_2, LOW);
+  digitalWrite(LOAD_MOSFET_1, LOW);
+  digitalWrite(LOAD_MOSFET_2, LOW);
 }
 
 void WSTextAll(String msg)
@@ -331,6 +344,7 @@ bool removeEvent(int evId)
 
   if (MyCalendar.remove(evId))
   {
+    calendarLastCheck = 0;
     File scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_WRITE);
     if (!scheduleFile)
     {
@@ -360,6 +374,7 @@ bool setEventEnabled(byte evId, bool enabled)
   }
 
   MyCalendar.setEnabled(evId, enabled);
+  calendarLastCheck = 0;
 
   if (!schedule[evId].isNull())
   {
@@ -435,7 +450,8 @@ void loadManualIrrigationFromSD()
 
 void stopManualIrrigation()
 {
-  removeEvent(MANUAL_IRRIGATION_EVENT_ID);
+  MyCalendar.remove(MANUAL_IRRIGATION_EVENT_ID);
+  calendarLastCheck = 0;
   SD.remove(MANUAL_IRRIGATION_FILE_NAME);
   WSTextAll(MANUAL_IRRIGATION_STOP);
 }
@@ -498,6 +514,8 @@ void addOrEditSchedule(const JsonObject &eventData)
     serializeJson(schedule, scheduleFile);
     scheduleFile.close();
   }
+
+  calendarLastCheck = 0;
 
   sendSlotsToWS();
 
@@ -616,6 +634,7 @@ void addManualEventToCalendar(const JsonObject &eventData)
 
     serializeJson(manual, manualFile);
     manualFile.close();
+    calendarLastCheck = 0;
     WSTextAll(MANUAL_IRRIGATION_STATUS_TRUE);
   }
 }
@@ -848,33 +867,14 @@ void initSerial()
 
 void checkCalendar()
 {
+  bool zones[4] = {false};
+
   if (dateIsValid() && (millis() - calendarLastCheck >= CALENDAR_CHECK_INTERVAL))
   {
     calendarLastCheck = millis();
 
-    /*Chronos::Event::Occurrence occurrenceList1[3];
-    int numMon = MyCalendar.listNext(3, occurrenceList1, Chronos::DateTime::now());
-    if (numMon)
-    {
-      Serial.println("");
-      Serial.print("Next event: ");
-      for (int i = 0; i < numMon; i++)
-      {
-        Serial.print((int)occurrenceList1[i].id);
-        Serial.print(": ");
-        occurrenceList1[i].start.printTo(Serial);
-        occurrenceList1[i].finish.printTo(Serial);
-        Serial.println("");
-        Serial.println("Zones: ");
-
-        Serial.print(occurrenceList1[i].zones.zone1);
-        Serial.print(occurrenceList1[i].zones.zone2);
-        Serial.print(occurrenceList1[i].zones.zone3);
-        Serial.print(occurrenceList1[i].zones.zone4);
-
-        Serial.println("");
-      }
-    }*/
+    Chronos::Event::Occurrence nextList[ZONES_COUNT];
+    int numNext = MyCalendar.listNext(ZONES_COUNT, 1, nextList, Chronos::DateTime::now());
 
     Chronos::Event::Occurrence occurrenceList[CALENDAR_OCCURRENCES_LIST_SIZE];
     int numOngoing = MyCalendar.listOngoing(CALENDAR_OCCURRENCES_LIST_SIZE, occurrenceList, Chronos::DateTime::now());
@@ -899,14 +899,36 @@ void checkCalendar()
             stopManualIrrigation();
           }
         }
+
+        if (occurrenceList[i].zones.zone1)
+        {
+          zones[0] = true;
+        }
+        if (occurrenceList[i].zones.zone2)
+        {
+          zones[1] = true;
+        }
+        if (occurrenceList[i].zones.zone3)
+        {
+          zones[2] = true;
+        }
+        if (occurrenceList[i].zones.zone4)
+        {
+          zones[3] = true;
+        }
       }
     }
 
+    digitalWrite(LOAD_RELAY_1, zones[0] ? HIGH : LOW);
+    digitalWrite(LOAD_RELAY_2, zones[1] ? HIGH : LOW);
+    digitalWrite(LOAD_MOSFET_1, zones[2] ? HIGH : LOW);
+    digitalWrite(LOAD_MOSFET_2, zones[3] ? HIGH : LOW);
+
     if (ws.count() > 0)
     {
-      DynamicJsonDocument answer(4000);
-      answer["command"] = "ongoingEvents";
-      JsonArray data = answer.createNestedArray("data");
+      DynamicJsonDocument ongoing(4000);
+      ongoing["command"] = "ongoingEvents";
+      JsonArray data = ongoing.createNestedArray("data");
 
       if (numOngoing)
       {
@@ -923,8 +945,29 @@ void checkCalendar()
           occurrence["elapsed"] = (Chronos::DateTime::now() - occurrenceList[i].finish).totalSeconds();
         }
       }
+      
+      sendDocumentToWs(ongoing);
 
-      sendDocumentToWs(answer);
+      if (numNext)
+      {
+        DynamicJsonDocument next(4000);
+        next["command"] = "nextEvents";
+        JsonArray nextData = next.createNestedArray("data");
+        for (int i = 0; i < numNext; i++)
+        {
+          JsonObject nextOccurrence = nextData.createNestedObject();
+          JsonArray nextOcurenceZones = nextOccurrence.createNestedArray("zones");
+          nextOcurenceZones.add(nextList[i].zones.zone1);
+          nextOcurenceZones.add(nextList[i].zones.zone2);
+          nextOcurenceZones.add(nextList[i].zones.zone3);
+          nextOcurenceZones.add(nextList[i].zones.zone4);
+          nextOccurrence["from"] = nextList[i].start.asEpoch();
+          nextOccurrence["to"] = nextList[i].finish.asEpoch();
+          nextOccurrence["elapsed"] = (nextList[i].finish - Chronos::DateTime::now()).totalSeconds();
+        }
+
+        sendDocumentToWs(next);
+      }
     }
   }
 }
@@ -1147,7 +1190,9 @@ void syncRTC()
       sendATCommand("AT+CCLK?");
       RTCLastSync = millis();
     }
-  } else {
+  }
+  else
+  {
     timeClient.update();
   }
 }
