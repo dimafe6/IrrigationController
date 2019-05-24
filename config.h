@@ -17,6 +17,9 @@
 /* RTC */
 #define RTC_SYNC_INTERVAL 60000
 
+/* SIM800 configuration */
+#define CHECK_BALANCE_INTERVAL 30000 //1h
+
 /* Calendar configuration */
 #define CALENDAR_OCCURRENCES_LIST_SIZE 25
 #define CALENDAR_MAX_NUM_EVENTS 25

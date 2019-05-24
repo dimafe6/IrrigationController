@@ -53,6 +53,7 @@ long thingSpeakLastUpdate;
 long HC12LastUpdate;
 long calendarLastCheck;
 long RTCLastSync;
+long balanceLastCheck;
 
 int currentBalance = NULL;
 bool shouldReboot = false;
@@ -82,6 +83,7 @@ void loop()
   listenSIM800();
   checkCalendar();
   listenRadio();
+  checkBalance();
 }
 
 void initPins()
@@ -860,8 +862,7 @@ void initSerial()
 {
   Serial.begin(BAUD_RATE);
   HC12.begin(BAUD_RATE, SERIAL_8N1, HC_12_RX, HC_12_TX);
-  SIM800.begin(BAUD_RATE);
-  //sendATCommand("AT+CUSD=1,\"*111#\"");
+  SIM800.begin(BAUD_RATE);  
   sendATCommand("AT");
 }
 
@@ -945,7 +946,7 @@ void checkCalendar()
           occurrence["elapsed"] = (Chronos::DateTime::now() - occurrenceList[i].finish).totalSeconds();
         }
       }
-      
+
       sendDocumentToWs(ongoing);
 
       if (numNext)
@@ -1194,6 +1195,15 @@ void syncRTC()
   else
   {
     timeClient.update();
+  }
+}
+
+void checkBalance()
+{
+  if (millis() - balanceLastCheck >= CHECK_BALANCE_INTERVAL)
+  {
+    sendATCommand("AT+CUSD=1,\"*111#\"");
+    balanceLastCheck = millis();
   }
 }
 
