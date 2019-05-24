@@ -8,8 +8,8 @@
 /* Pins for load control */
 #define LOAD_RELAY_1 21  // Relay 1
 #define LOAD_RELAY_2 22  // Relay 2
-#define LOAD_MOSFET_1 18 // Mosfet 1
-#define LOAD_MOSFET_2 19 // Mosfet 2
+#define LOAD_MOSFET_1 19 // Mosfet 1
+#define LOAD_MOSFET_2 18 // Mosfet 2
 
 /* Thing Speak configuration */
 #define THING_SPEAK_WRITE_INTERVAL 900000
