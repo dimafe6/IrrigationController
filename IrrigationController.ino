@@ -49,15 +49,24 @@ struct WeatherData
   int groundHum = NULL;
 } weatherData;
 
-long thingSpeakLastUpdate;
-long HC12LastUpdate;
-long calendarLastCheck;
-long RTCLastSync;
-long balanceLastCheck;
+unsigned long thingSpeakLastUpdate = 0;
+unsigned long HC12LastUpdate = 0;
+unsigned long calendarLastCheck = 0;
+unsigned long RTCLastSync = 0;
+unsigned long balanceLastCheck = 0;
+unsigned long flowPrevTime = 0;
+unsigned long saveStatisticPrevTime = 0;
 
 int currentBalance = NULL;
 bool shouldReboot = false;
 bool manualIrrigationRunning = false;
+volatile int flowPulses = 0;
+
+float flowCalibrationFactor = FLOW_SENSOR_CALIBRATION;
+float totalLitres = 0.0;
+float currentDayLitres = 0.0;
+float currentMonthLitres = 0.0;
+float currentFlow = 0.0;
 
 void setup()
 {
@@ -84,6 +93,8 @@ void loop()
   checkCalendar();
   listenRadio();
   checkBalance();
+  flowCalculate();
+  saveStatistic();
 }
 
 void initPins()
@@ -96,6 +107,122 @@ void initPins()
   digitalWrite(LOAD_RELAY_2, LOW);
   digitalWrite(LOAD_MOSFET_1, LOW);
   digitalWrite(LOAD_MOSFET_2, LOW);
+  pinMode(FLOW_SENSOR_PIN, INPUT);
+}
+
+void initFlowSensor()
+{
+  attachInterrupt(digitalPinToInterrupt(FLOW_SENSOR_PIN), flowPulseCounter, FALLING);
+}
+
+void flowPulseCounter()
+{
+  flowPulses++;
+}
+
+void flowCalculate()
+{
+  if ((millis() - flowPrevTime) > FLOW_SENSOR_CALCULATION_INTERVAL)
+  {
+    detachInterrupt(digitalPinToInterrupt(FLOW_SENSOR_PIN));
+    currentFlow = ((FLOW_SENSOR_CALCULATION_INTERVAL / (millis() - flowPrevTime)) * flowPulses) / flowCalibrationFactor;
+    flowPrevTime = millis();
+    float currentLitres = currentFlow / 60;
+    totalLitres += currentLitres;
+    flowPulses = 0;
+    initFlowSensor();
+  }
+}
+
+void saveStatistic()
+{
+  if ((millis() - saveStatisticPrevTime) > SAVE_STATISTIC_INTERVAL)
+  {
+    Chronos::DateTime nowTime(Chronos::DateTime::now());
+
+    char fileName[30];
+    sprintf(fileName, WATER_STATISTIC_FILE, nowTime.year(), nowTime.month());
+
+    saveStatisticPrevTime = millis();
+
+    File waterStatisticFile;
+    DynamicJsonDocument waterStatistic(STATISTIC_FILE_SIZE);
+
+    if (SD.exists(fileName))
+    {
+      waterStatisticFile = SD.open(fileName, FILE_READ);
+      deserializeJson(waterStatistic, waterStatisticFile);
+      waterStatisticFile.close();
+    }
+
+    if (waterStatistic.isNull())
+    {
+      deserializeJson(waterStatistic, "[]");
+    }
+
+    waterStatisticFile = SD.open(fileName, FILE_WRITE);
+    if (!waterStatisticFile)
+    {
+      Serial.println(F("Failed to create water statistic file"));
+      return;
+    }
+
+    JsonArray arrayStatistic = waterStatistic.as<JsonArray>();
+    int currentIndex = searchDocumentInArray(arrayStatistic, "d", nowTime.day());
+    JsonObject currentDateStatistic = arrayStatistic[currentIndex];
+
+    if (currentDateStatistic.isNull())
+    {
+      currentDateStatistic = arrayStatistic.createNestedObject();
+    }
+
+    float litres = currentDateStatistic["l"].as<float>();
+
+    currentDayLitres = round((litres + totalLitres) * 100) / 100.0;
+    currentDateStatistic["d"] = nowTime.day();
+    currentDateStatistic["l"] = currentDayLitres;
+    Serial.println("");
+    serializeJson(arrayStatistic, Serial);
+    serializeJson(arrayStatistic, waterStatisticFile);
+
+    currentMonthLitres = 0.0;
+    for (JsonObject obj : arrayStatistic)
+    {
+      currentMonthLitres += obj["l"].as<float>();
+    }
+
+    waterStatisticFile.close();
+    totalLitres = 0;
+  }
+}
+
+void sendWaterInfoToWS()
+{
+  DynamicJsonDocument waterInfo(128);
+  waterInfo["command"] = "getWaterInfo";
+
+  JsonObject data = waterInfo.createNestedObject("data");
+
+  data["flow"] = round(currentFlow * 10) / 10.0;
+  data["curDay"] = currentDayLitres;
+  data["curMonth"] = currentMonthLitres;
+
+  sendDocumentToWs(waterInfo);
+}
+
+int searchDocumentInArray(const JsonArray &arr, char *field, int search)
+{
+  int index = 0;
+  for (JsonObject obj : arr)
+  {
+    if (obj[field] == search)
+    {
+      return index;
+    }
+    index++;
+  }
+
+  return index;
 }
 
 void WSTextAll(String msg)
@@ -711,6 +838,10 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       {
         sendSysInfoToWS();
       }
+      else if (command == "getWaterInfo")
+      {
+        sendWaterInfoToWS();
+      }
     }
   }
 }
@@ -862,7 +993,7 @@ void initSerial()
 {
   Serial.begin(BAUD_RATE);
   HC12.begin(BAUD_RATE, SERIAL_8N1, HC_12_RX, HC_12_TX);
-  SIM800.begin(BAUD_RATE);  
+  SIM800.begin(BAUD_RATE);
   sendATCommand("AT");
 }
 
@@ -964,7 +1095,7 @@ void checkCalendar()
           nextOcurenceZones.add(nextList[i].zones.zone4);
           nextOccurrence["from"] = nextList[i].start.asEpoch();
           nextOccurrence["to"] = nextList[i].finish.asEpoch();
-          nextOccurrence["elapsed"] = (nextList[i].finish - Chronos::DateTime::now()).totalSeconds();
+          nextOccurrence["elapsed"] = (nextList[i].start - Chronos::DateTime::now()).totalSeconds();
         }
 
         sendDocumentToWs(next);

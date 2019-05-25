@@ -16,6 +16,10 @@ $(document).ready(function () {
         getSysInfo();
     }, 5000);
 
+    setInterval(function () {
+        getWaterInfo();
+    }, 1000);
+
     moment.updateLocale('en', {
         week: {
             dow: 0,
@@ -558,6 +562,11 @@ function WebSocketBegin(location) {
                             });
                         });
                         break;
+                    case 'getWaterInfo':
+                        $('#water-flow').text(data['flow']);
+                        $('#water-day').text(data['curDay']);
+                        $('#water-month').text(data['curMonth']);
+                    break;
                 }
             }
         };
@@ -870,6 +879,13 @@ function setEventEnabled(evId, enabled = true) {
 function getSysInfo() {
     var command = {};
     command.command = "getSysInfo";
+
+    ws.send(JSON.stringify(command));
+}
+
+function getWaterInfo() {
+    var command = {};
+    command.command = "getWaterInfo";
 
     ws.send(JSON.stringify(command));
 }

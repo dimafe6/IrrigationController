@@ -5,6 +5,11 @@
 #define HC_12_UPDATE_INTERVAL 2000
 #define PRINTLN(...)  Serial.println(__VA_ARGS__)
 
+/* Flow sensor */
+#define FLOW_SENSOR_PIN 34
+#define FLOW_SENSOR_CALIBRATION 6.5
+#define FLOW_SENSOR_CALCULATION_INTERVAL 1000.0
+
 /* Pins for load control */
 #define LOAD_RELAY_1 21  // Relay 1
 #define LOAD_RELAY_2 22  // Relay 2
@@ -18,7 +23,7 @@
 #define RTC_SYNC_INTERVAL 60000
 
 /* SIM800 configuration */
-#define CHECK_BALANCE_INTERVAL 30000 //1h
+#define CHECK_BALANCE_INTERVAL 3600000 //1h
 
 /* Calendar configuration */
 #define CALENDAR_OCCURRENCES_LIST_SIZE 25
@@ -43,3 +48,8 @@
 #define MANUAL_IRRIGATION_STATUS_TRUE "{\"command\":\"manualIrrigation\",\"status\":true}"
 #define MANUAL_IRRIGATION_STOP "{\"command\":\"stopManualIrrigation\"}"
 #define SCHEDULE_ADD_EDIT "{\"command\":\"addOrEditSchedule\"}"
+
+/* Statistic */
+#define SAVE_STATISTIC_INTERVAL 5000
+#define WATER_STATISTIC_FILE "/water_statistic_%d_%d.json"
+#define STATISTIC_FILE_SIZE 5000
