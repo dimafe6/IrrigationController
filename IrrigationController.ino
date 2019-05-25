@@ -1246,6 +1246,7 @@ void WiFiEvent(WiFiEvent_t event)
     timeClient.forceUpdate();
     setSyncProvider(getTime);
     setSyncInterval(1);
+    Chronos::DateTime::now().printTo(Serial);
     break;
   case SYSTEM_EVENT_STA_LOST_IP:
     Serial.println("Lost IP address and IP address is reset to 0");
@@ -1382,7 +1383,22 @@ void listenSIM800()
       uint8_t hour = cclk.substring(9, 11).toInt();
       uint8_t minute = cclk.substring(12, 14).toInt();
       uint8_t second = cclk.substring(15, 17).toInt();
-      setTime(hour, minute, second, day, month, year);
+      char sign = cclk.substring(17, 18)[0];
+      uint8_t quarters = cclk.substring(18, 20).toInt();
+      uint8_t timezone = quarters / 4;
+      Chronos::DateTime newTime(year+2000, month, day, hour, minute, second);
+
+      //Shift local GSM timezone to UTC
+      if (sign == '+')
+      {
+        newTime -= Chronos::Span::Hours(timezone);
+      }
+      else
+      {
+        newTime += Chronos::Span::Hours(timezone);
+      }
+
+      setTime(newTime.hour(), newTime.minute(), newTime.second(), newTime.day(), newTime.month(), newTime.year());
       Serial.println("RTC synchronized. New time is: ");
       Chronos::DateTime::now().printTo(Serial);
     }
