@@ -53,11 +53,15 @@ unsigned long thingSpeakLastUpdate = 0;
 unsigned long HC12LastUpdate = 0;
 unsigned long calendarLastCheck = 0;
 unsigned long RTCLastSync = 0;
-unsigned long balanceLastCheck = 0;
+unsigned long balanceLastCheck = CHECK_BALANCE_INTERVAL;
+unsigned long GSMStatusLastCheck = CHECK_STATUS_INTERVAL;
 unsigned long flowPrevTime = 0;
 unsigned long saveStatisticPrevTime = 0;
 
 int currentBalance = NULL;
+byte CREGCode = 0;
+int GSMSignal = 0;
+String GSMPhoneNumber;
 bool shouldReboot = false;
 bool manualIrrigationRunning = false;
 volatile int flowPulses = 0;
@@ -93,6 +97,7 @@ void loop()
   checkCalendar();
   listenRadio();
   checkBalance();
+  checkGSMStatus();
   flowCalculate();
   saveStatistic();
 }
@@ -387,7 +392,7 @@ void sendSlotsToWS()
 
 void sendSysInfoToWS()
 {
-  DynamicJsonDocument sysInfo(512);
+  DynamicJsonDocument sysInfo(1024);
   sysInfo["command"] = "getSysInfo";
 
   JsonObject data = sysInfo.createNestedObject("data");
@@ -431,6 +436,12 @@ void sendSysInfoToWS()
   spiffsInfo["total"] = size;
   sprintf(size, "%dKB", SPIFFS.usedBytes() / 1024);
   spiffsInfo["used"] = size;
+
+  JsonObject gsm = data.createNestedObject("gsm");
+  gsm["balance"] = currentBalance;
+  gsm["CREGCode"] = CREGCode;
+  gsm["signal"] = GSMSignal;
+  gsm["phone"] = GSMPhoneNumber;
 
   sendDocumentToWs(sysInfo);
 }
@@ -1339,6 +1350,18 @@ void checkBalance()
   }
 }
 
+void checkGSMStatus()
+{
+  if (millis() - GSMStatusLastCheck >= CHECK_STATUS_INTERVAL)
+  {
+    sendATCommand("AT+CREG?");
+    sendATCommand("AT+CSQ");
+    sendATCommand("AT+CNUM");
+
+    GSMStatusLastCheck = millis();
+  }
+}
+
 void listenSIM800()
 {
   if (Serial.available())
@@ -1386,7 +1409,7 @@ void listenSIM800()
       char sign = cclk.substring(17, 18)[0];
       uint8_t quarters = cclk.substring(18, 20).toInt();
       uint8_t timezone = quarters / 4;
-      Chronos::DateTime newTime(year+2000, month, day, hour, minute, second);
+      Chronos::DateTime newTime(year + 2000, month, day, hour, minute, second);
 
       //Shift local GSM timezone to UTC
       if (sign == '+')
@@ -1401,6 +1424,28 @@ void listenSIM800()
       setTime(newTime.hour(), newTime.minute(), newTime.second(), newTime.day(), newTime.month(), newTime.year());
       Serial.println("RTC synchronized. New time is: ");
       Chronos::DateTime::now().printTo(Serial);
+    }
+
+    if (response.indexOf("+CREG:") > -1)
+    {
+      CREGCode = response.substring(response.indexOf("+CREG:") + 9).toInt();
+    }
+
+    if (response.indexOf("+CSQ:") > -1)
+    {
+      String csq;
+      csq.reserve(12);
+      csq = response.substring(response.indexOf("+CSQ:") + 6);
+      GSMSignal = csq.substring(0, 2).toInt() * 2;
+    }
+
+    if (response.indexOf("+CNUM:") > -1)
+    {
+      String cnum;
+      cnum.reserve(36);
+      cnum = response.substring(response.indexOf("+CNUM:") + 11);
+      GSMPhoneNumber.reserve(12);
+      GSMPhoneNumber = cnum.substring(0, 12);
     }
   }
 }

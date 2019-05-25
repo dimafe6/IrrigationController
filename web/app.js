@@ -521,6 +521,34 @@ function WebSocketBegin(location) {
                             memChart.data.datasets[3].data.push(max);
                             memChart.update();
                         }
+
+                        if (data['gsm']) {
+                            $('#gsm-balance').text(data['gsm']['balance'] + "₴");
+                            var status = "N/A";
+                            switch(data['gsm']['CREGCode']) {
+                                case 0:
+                                status = "Not registered";
+                                break;
+                                case 1:
+                                status = "Registered";
+                                break;
+                                case 2:
+                                status = "Search";
+                                break;
+                                case 3:
+                                status = "Declined";
+                                break;
+                                case 4:
+                                status = "Unknown";
+                                break;
+                                case 5:
+                                status = "Roaming";
+                                break;
+                            }
+                            $('#gsm-status').text(status);
+                            $('#gsm-signal').text(data['gsm']['signal']);
+                            $('#gsm-phone').text(data['gsm']['phone']);
+                        }
                         break;
                     case 'ongoingEvents':
                         $('.zone-panel').removeClass('active');

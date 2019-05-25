@@ -24,6 +24,7 @@
 
 /* SIM800 configuration */
 #define CHECK_BALANCE_INTERVAL 3600000 //1h
+#define CHECK_STATUS_INTERVAL 300000 //5m
 
 /* Calendar configuration */
 #define CALENDAR_OCCURRENCES_LIST_SIZE 25
