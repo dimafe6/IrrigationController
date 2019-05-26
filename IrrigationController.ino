@@ -3,7 +3,6 @@
 #include <ArduinoJson.h>
 #include "ThingSpeak.h"
 #include <WiFi.h>
-#include <WiFiUdp.h>
 #include <FS.h>
 #include <SPIFFS.h>
 #include "SD.h"
@@ -11,7 +10,6 @@
 #include <SPIFFSEditor.h>
 #include <Time.h>
 #include <Update.h>
-#include <NTPClient.h>
 #include "src/Chronos/src/Chronos.h"
 
 SPIClass spiSD(HSPI);
@@ -24,8 +22,6 @@ DefineCalendarType(Calendar, CALENDAR_MAX_NUM_EVENTS);
 Calendar MyCalendar;
 AsyncWebHandler *spiffsEditorHandler;
 AsyncWebHandler *sdEditorHandler;
-WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "ua.pool.ntp.org");
 
 enum Periodicity
 {
@@ -186,8 +182,6 @@ void saveStatistic()
     currentDayLitres = round((litres + totalLitres) * 100) / 100.0;
     currentDateStatistic["d"] = nowTime.day();
     currentDateStatistic["l"] = currentDayLitres;
-    Serial.println("");
-    serializeJson(arrayStatistic, Serial);
     serializeJson(arrayStatistic, waterStatisticFile);
 
     currentMonthLitres = 0.0;
@@ -1241,8 +1235,6 @@ void WiFiEvent(WiFiEvent_t event)
     break;
   case SYSTEM_EVENT_STA_DISCONNECTED:
     Serial.println("Disconnected from WiFi access point");
-    setSyncProvider(nullptr);
-    timeClient.end();
     WiFi.reconnect();
     break;
   case SYSTEM_EVENT_STA_AUTHMODE_CHANGE:
@@ -1253,10 +1245,6 @@ void WiFiEvent(WiFiEvent_t event)
     Serial.println(WiFi.SSID());
     Serial.println(WiFi.localIP());
     ThingSpeak.begin(client);
-    timeClient.begin();
-    timeClient.forceUpdate();
-    setSyncProvider(getTime);
-    setSyncInterval(1);
     Chronos::DateTime::now().printTo(Serial);
     break;
   case SYSTEM_EVENT_STA_LOST_IP:
@@ -1314,11 +1302,6 @@ void WiFiEvent(WiFiEvent_t event)
   }
 }
 
-static time_t getTime()
-{
-  return timeClient.getEpochTime();
-}
-
 bool dateIsValid()
 {
   return year() >= 2019;
@@ -1326,18 +1309,11 @@ bool dateIsValid()
 
 void syncRTC()
 {
-  if (WiFi.status() != WL_CONNECTED)
+  //If current year < 2019 then update RTC every 2 sec else update RTC every RTC_SYNC_INTERVAL
+  if (millis() - RTCLastSync >= (!dateIsValid() ? 2000 : RTC_SYNC_INTERVAL))
   {
-    //If current year < 2019 then update RTC every 2 sec else update RTC every RTC_SYNC_INTERVAL
-    if (millis() - RTCLastSync >= (!dateIsValid() ? 2000 : RTC_SYNC_INTERVAL))
-    {
-      sendATCommand("AT+CCLK?");
-      RTCLastSync = millis();
-    }
-  }
-  else
-  {
-    timeClient.update();
+    sendATCommand("AT+CCLK?");
+    RTCLastSync = millis();
   }
 }
 
@@ -1372,12 +1348,8 @@ void listenSIM800()
   if (SIM800.available())
   {
     String response;
-    response = SIM800.readString();
-    response.trim();
-    if (response != "")
-    {
-      Serial.println(response);
-    }
+    response = SIM800.readStringUntil('\n');
+    Serial.println(response);
 
     // USSD Handler
     if (response.indexOf("+CUSD:") > -1)
@@ -1406,22 +1378,7 @@ void listenSIM800()
       uint8_t hour = cclk.substring(9, 11).toInt();
       uint8_t minute = cclk.substring(12, 14).toInt();
       uint8_t second = cclk.substring(15, 17).toInt();
-      char sign = cclk.substring(17, 18)[0];
-      uint8_t quarters = cclk.substring(18, 20).toInt();
-      uint8_t timezone = quarters / 4;
-      Chronos::DateTime newTime(year + 2000, month, day, hour, minute, second);
-
-      //Shift local GSM timezone to UTC
-      if (sign == '+')
-      {
-        newTime -= Chronos::Span::Hours(timezone);
-      }
-      else
-      {
-        newTime += Chronos::Span::Hours(timezone);
-      }
-
-      setTime(newTime.hour(), newTime.minute(), newTime.second(), newTime.day(), newTime.month(), newTime.year());
+      setTime(hour, minute, second, day, month, year);
       Serial.println("RTC synchronized. New time is: ");
       Chronos::DateTime::now().printTo(Serial);
     }
