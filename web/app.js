@@ -358,6 +358,11 @@ $(document).ready(function () {
             },
         }
     });
+
+    $(document).on('click', '.running-info .skip-btn', function () {
+        var evId = parseInt($(this).closest('.running-info').attr('data-evid'));
+        skipEvent(evId);
+    });
 });
 
 function getMomentFromEpoch(epoch) {
@@ -525,25 +530,25 @@ function WebSocketBegin(location) {
                         if (data['gsm']) {
                             $('#gsm-balance').text(data['gsm']['balance'] + "₴");
                             var status = "N/A";
-                            switch(data['gsm']['CREGCode']) {
+                            switch (data['gsm']['CREGCode']) {
                                 case 0:
-                                status = "Not registered";
-                                break;
+                                    status = "Not registered";
+                                    break;
                                 case 1:
-                                status = "Registered";
-                                break;
+                                    status = "Registered";
+                                    break;
                                 case 2:
-                                status = "Search";
-                                break;
+                                    status = "Search";
+                                    break;
                                 case 3:
-                                status = "Declined";
-                                break;
+                                    status = "Declined";
+                                    break;
                                 case 4:
-                                status = "Unknown";
-                                break;
+                                    status = "Unknown";
+                                    break;
                                 case 5:
-                                status = "Roaming";
-                                break;
+                                    status = "Roaming";
+                                    break;
                             }
                             $('#gsm-status').text(status);
                             $('#gsm-signal').text(data['gsm']['signal']);
@@ -567,6 +572,7 @@ function WebSocketBegin(location) {
                                     $zonePanel.find('.duration').html(moment.duration((finishDate - startDate), "milliseconds").format("D[d] H[h] m[m] s[s]"));
                                     $zonePanel.find('.elapsed-time').html(elapsed);
                                     $zonePanel.addClass('active');
+                                    $zonePanelBody.find('.running-info').attr("data-evid", occurence.evId);
                                 }
                             });
                         });
@@ -594,7 +600,7 @@ function WebSocketBegin(location) {
                         $('#water-flow').text(data['flow']);
                         $('#water-day').text(data['curDay']);
                         $('#water-month').text(data['curMonth']);
-                    break;
+                        break;
                 }
             }
         };
@@ -916,4 +922,15 @@ function getWaterInfo() {
     command.command = "getWaterInfo";
 
     ws.send(JSON.stringify(command));
+}
+
+function skipEvent(evId) {
+    if (confirm("Are you sure?")) {
+        var command = {};
+        command.command = "skipEvent";
+        command.data = {};
+        command.data.evId = evId;
+
+        ws.send(JSON.stringify(command));
+    }
 }

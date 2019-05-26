@@ -350,7 +350,7 @@ void loadCalendarFromSD()
   {
     addEventToCalendar(evId, eventData);
     evId++;
-  }
+  }  
 }
 
 void sendSlotsToWS()
@@ -534,6 +534,43 @@ bool setEventEnabled(byte evId, bool enabled)
   return true;
 }
 
+bool skipEvent(byte evId)
+{
+  DynamicJsonDocument schedule(SCHEDULE_FILE_SIZE);
+
+  if (!openScheduleFromSD(schedule))
+  {
+    return false;
+  }
+
+  Chronos::DateTime finish = MyCalendar.closestFinish(evId);
+  MyCalendar.skipEvent(evId, finish);
+  calendarLastCheck = 0;
+
+  if (!schedule[evId].isNull())
+  {
+    schedule[evId]["skipUntil"] = finish.asEpoch();
+  }
+  else
+  {
+    return false;
+  }
+
+  File scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_WRITE);
+  if (!scheduleFile)
+  {
+    Serial.println(F("Failed to create schedule"));
+
+    return false;
+  }
+
+  serializeJson(schedule, scheduleFile);
+  scheduleFile.close();
+
+  return true;
+}
+
+
 void loadManualIrrigationFromSD()
 {
   File manualFile;
@@ -665,6 +702,8 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
   bool eventSaved = false;
   JsonVariant enabled = eventData["enabled"];
   JsonVariant evIdElem = eventData["evId"];
+  Chronos::EpochTime skipUntilTime = eventData["skipUntil"];
+  Chronos::DateTime skipUntil = Chronos::DateTime(skipUntilTime);
 
   if (enabled.isNull())
   {
@@ -742,6 +781,8 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
   }
   break;
   }
+
+  MyCalendar.skipEvent(evId, skipUntil);
 
   return eventSaved;
 }
@@ -847,6 +888,9 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       else if (command == "getWaterInfo")
       {
         sendWaterInfoToWS();
+      }
+      else if(command == "skipEvent") {        
+        skipEvent(root["data"]["evId"]);
       }
     }
   }
@@ -1081,6 +1125,7 @@ void checkCalendar()
           occurrence["from"] = occurrenceList[i].start.asEpoch();
           occurrence["to"] = occurrenceList[i].finish.asEpoch();
           occurrence["elapsed"] = (Chronos::DateTime::now() - occurrenceList[i].finish).totalSeconds();
+          occurrence["evId"] = occurrenceList[i].id;
         }
       }
 
@@ -1102,6 +1147,7 @@ void checkCalendar()
           nextOccurrence["from"] = nextList[i].start.asEpoch();
           nextOccurrence["to"] = nextList[i].finish.asEpoch();
           nextOccurrence["elapsed"] = (nextList[i].start - Chronos::DateTime::now()).totalSeconds();
+          nextOccurrence["evId"] = nextList[i].id;
         }
 
         sendDocumentToWs(next);
