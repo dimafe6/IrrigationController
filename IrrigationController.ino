@@ -238,6 +238,7 @@ void initWebServer()
   server.addHandler(&ws);
   server.serveStatic("/app.js", SPIFFS, "/app.js").setCacheControl("max-age=0");
   server.serveStatic("/", SPIFFS, "/").setDefaultFile("index.html");
+  server.rewrite("/wifi", "/wifi.html");
 
   server.on("/edit/sd", [](AsyncWebServerRequest *request) {
     server.removeHandler(spiffsEditorHandler);
