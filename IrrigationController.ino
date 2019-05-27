@@ -441,9 +441,9 @@ void sendSysInfoToWS()
   sendDocumentToWs(sysInfo);
 }
 
-Chronos::Zones getZonesFromJson(const JsonArray &zones)
+bool * getChannelsFromJson(const JsonArray &channels)
 {
-  struct Chronos::Zones _zones;
+  bool _channels[CHANNELS_COUNT];
 
   for (int zone : zones)
   {
