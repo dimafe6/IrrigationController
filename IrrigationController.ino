@@ -350,7 +350,7 @@ void loadCalendarFromSD()
   {
     addEventToCalendar(evId, eventData);
     evId++;
-  }  
+  }
 }
 
 void sendSlotsToWS()
@@ -441,31 +441,12 @@ void sendSysInfoToWS()
   sendDocumentToWs(sysInfo);
 }
 
-bool * getChannelsFromJson(const JsonArray &channels)
+void getChannelsFromJson(const JsonArray &arr, bool* _channels)
 {
-  bool _channels[CHANNELS_COUNT];
-
-  for (int zone : zones)
+  for (int channel : arr)
   {
-    if (zone == 1)
-    {
-      _zones.zone1 = true;
-    }
-    if (zone == 2)
-    {
-      _zones.zone2 = true;
-    }
-    if (zone == 3)
-    {
-      _zones.zone3 = true;
-    }
-    if (zone == 4)
-    {
-      _zones.zone4 = true;
-    }
+    _channels[channel] = true;
   }
-
-  return _zones;
 }
 
 bool removeEvent(int evId)
@@ -570,7 +551,6 @@ bool skipEvent(byte evId)
   return true;
 }
 
-
 void loadManualIrrigationFromSD()
 {
   File manualFile;
@@ -604,7 +584,8 @@ void loadManualIrrigationFromSD()
   JsonObject eventData = manual.as<JsonObject>();
 
   int duration = eventData["duration"];
-  struct Chronos::Zones _zones = getZonesFromJson(eventData["zones"]);
+  bool _channels[CHANNELS_COUNT];
+  getChannelsFromJson(eventData["channels"], _channels);
   Chronos::EpochTime from = eventData["from"];
   Chronos::EpochTime to = eventData["to"];
 
@@ -617,7 +598,7 @@ void loadManualIrrigationFromSD()
     return;
   }
 
-  MyCalendar.add(Chronos::Event(MANUAL_IRRIGATION_EVENT_ID, Chronos::DateTime(from), Chronos::DateTime(to), _zones));
+  MyCalendar.add(Chronos::Event(MANUAL_IRRIGATION_EVENT_ID, Chronos::DateTime(from), Chronos::DateTime(to), _channels));
 }
 
 void stopManualIrrigation()
@@ -697,7 +678,8 @@ void addOrEditSchedule(const JsonObject &eventData)
 bool addEventToCalendar(byte evId, const JsonObject &eventData)
 {
   int duration = eventData["duration"];
-  struct Chronos::Zones _zones = getZonesFromJson(eventData["zones"]);
+  bool _channels[CHANNELS_COUNT];
+  getChannelsFromJson(eventData["channels"], _channels);
   byte periodicity = eventData["periodicity"];
   bool eventSaved = false;
   JsonVariant enabled = eventData["enabled"];
@@ -728,7 +710,7 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
     byte minute = eventData["minute"];
     byte second = eventData["second"];
 
-    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Hourly(minute, second), Chronos::Span::Minutes(duration), _zones, isEnabled));
+    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Hourly(minute, second), Chronos::Span::Minutes(duration), _channels, isEnabled));
   }
   break;
   case Periodicity::EVERY_X_HOUR:
@@ -738,7 +720,7 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
     byte minute = eventData["minute"];
     byte second = eventData["second"];
 
-    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::EveryXHours(hours, minute, second), Chronos::Span::Minutes(duration), _zones, isEnabled));
+    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::EveryXHours(hours, minute, second), Chronos::Span::Minutes(duration), _channels, isEnabled));
   }
   break;
   case Periodicity::DAILY:
@@ -747,7 +729,7 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
     byte hour = eventData["hour"];
     byte minute = eventData["minute"];
 
-    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Daily(hour, minute), Chronos::Span::Minutes(duration), _zones, isEnabled));
+    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Daily(hour, minute), Chronos::Span::Minutes(duration), _channels, isEnabled));
   }
   break;
   case Periodicity::EVERY_X_DAYS:
@@ -757,7 +739,7 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
     byte hour = eventData["hour"];
     byte minute = eventData["minute"];
 
-    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::EveryXDays(days, hour, minute), Chronos::Span::Minutes(duration), _zones, isEnabled));
+    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::EveryXDays(days, hour, minute), Chronos::Span::Minutes(duration), _channels, isEnabled));
   }
   break;
   case Periodicity::WEEKLY:
@@ -767,7 +749,7 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
     byte hour = eventData["hour"];
     byte minute = eventData["minute"];
 
-    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Weekly(dayOfWeek, hour, minute), Chronos::Span::Minutes(duration), _zones, isEnabled));
+    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Weekly(dayOfWeek, hour, minute), Chronos::Span::Minutes(duration), _channels, isEnabled));
   }
   break;
   case Periodicity::MONTHLY:
@@ -777,7 +759,7 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
     byte hour = eventData["hour"];
     byte minute = eventData["minute"];
 
-    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Monthly(dayOfMonth, hour, minute), Chronos::Span::Minutes(duration), _zones, isEnabled));
+    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Monthly(dayOfMonth, hour, minute), Chronos::Span::Minutes(duration), _channels, isEnabled));
   }
   break;
   }
@@ -790,7 +772,8 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
 void addManualEventToCalendar(const JsonObject &eventData)
 {
   int duration = eventData["duration"];
-  struct Chronos::Zones _zones = getZonesFromJson(eventData["zones"]);
+  bool _channels[CHANNELS_COUNT];
+  getChannelsFromJson(eventData["channels"], _channels);
 
   File manualFile = SD.open(MANUAL_IRRIGATION_FILE_NAME, FILE_WRITE);
   if (!manualFile)
@@ -800,12 +783,12 @@ void addManualEventToCalendar(const JsonObject &eventData)
   }
 
   MyCalendar.remove(MANUAL_IRRIGATION_EVENT_ID);
-  if (MyCalendar.add(Chronos::Event(MANUAL_IRRIGATION_EVENT_ID, Chronos::DateTime::now(), Chronos::DateTime::now() + Chronos::Span::Minutes(duration), _zones)))
+  if (MyCalendar.add(Chronos::Event(MANUAL_IRRIGATION_EVENT_ID, Chronos::DateTime::now(), Chronos::DateTime::now() + Chronos::Span::Minutes(duration), _channels)))
   {
     DynamicJsonDocument manual(128);
     manual["from"] = Chronos::DateTime::now().asEpoch();
     manual["to"] = (Chronos::DateTime::now() + Chronos::Span::Minutes(duration)).asEpoch();
-    manual["zones"] = eventData["zones"];
+    manual["channels"] = eventData["channels"];
     manual["duration"] = eventData["duration"];
 
     serializeJson(manual, manualFile);
@@ -889,7 +872,8 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       {
         sendWaterInfoToWS();
       }
-      else if(command == "skipEvent") {        
+      else if (command == "skipEvent")
+      {
         skipEvent(root["data"]["evId"]);
       }
     }
@@ -1049,14 +1033,14 @@ void initSerial()
 
 void checkCalendar()
 {
-  bool zones[4] = {false};
+  bool _channels[CHANNELS_COUNT] = {false};
 
   if (dateIsValid() && (millis() - calendarLastCheck >= CALENDAR_CHECK_INTERVAL))
   {
     calendarLastCheck = millis();
 
-    Chronos::Event::Occurrence nextList[ZONES_COUNT];
-    int numNext = MyCalendar.listNext(ZONES_COUNT, 1, nextList, Chronos::DateTime::now());
+    Chronos::Event::Occurrence nextList[CHANNELS_COUNT];
+    int numNext = MyCalendar.listNext(CHANNELS_COUNT, 1, nextList, Chronos::DateTime::now());
 
     Chronos::Event::Occurrence occurrenceList[CALENDAR_OCCURRENCES_LIST_SIZE];
     int numOngoing = MyCalendar.listOngoing(CALENDAR_OCCURRENCES_LIST_SIZE, occurrenceList, Chronos::DateTime::now());
@@ -1082,29 +1066,17 @@ void checkCalendar()
           }
         }
 
-        if (occurrenceList[i].zones.zone1)
+        for (byte n = 0; n < CHANNELS_COUNT; n++)
         {
-          zones[0] = true;
-        }
-        if (occurrenceList[i].zones.zone2)
-        {
-          zones[1] = true;
-        }
-        if (occurrenceList[i].zones.zone3)
-        {
-          zones[2] = true;
-        }
-        if (occurrenceList[i].zones.zone4)
-        {
-          zones[3] = true;
+          _channels[n] = occurrenceList[i].channels[n];
         }
       }
     }
 
-    digitalWrite(LOAD_RELAY_1, zones[0] ? HIGH : LOW);
-    digitalWrite(LOAD_RELAY_2, zones[1] ? HIGH : LOW);
-    digitalWrite(LOAD_MOSFET_1, zones[2] ? HIGH : LOW);
-    digitalWrite(LOAD_MOSFET_2, zones[3] ? HIGH : LOW);
+    digitalWrite(LOAD_RELAY_1, _channels[0] ? HIGH : LOW);
+    digitalWrite(LOAD_RELAY_2, _channels[1] ? HIGH : LOW);
+    digitalWrite(LOAD_MOSFET_1, _channels[2] ? HIGH : LOW);
+    digitalWrite(LOAD_MOSFET_2, _channels[3] ? HIGH : LOW);
 
     if (ws.count() > 0)
     {
@@ -1117,11 +1089,11 @@ void checkCalendar()
         for (int i = 0; i < numOngoing; i++)
         {
           JsonObject occurrence = data.createNestedObject();
-          JsonArray ocurenceZones = occurrence.createNestedArray("zones");
-          ocurenceZones.add(occurrenceList[i].zones.zone1);
-          ocurenceZones.add(occurrenceList[i].zones.zone2);
-          ocurenceZones.add(occurrenceList[i].zones.zone3);
-          ocurenceZones.add(occurrenceList[i].zones.zone4);
+          JsonArray ocurenceChannels = occurrence.createNestedArray("channels");
+          for (byte n = 0; n < CHANNELS_COUNT; n++)
+          {
+            ocurenceChannels.add(occurrenceList[i].channels[n]);
+          }
           occurrence["from"] = occurrenceList[i].start.asEpoch();
           occurrence["to"] = occurrenceList[i].finish.asEpoch();
           occurrence["elapsed"] = (Chronos::DateTime::now() - occurrenceList[i].finish).totalSeconds();
@@ -1139,11 +1111,11 @@ void checkCalendar()
         for (int i = 0; i < numNext; i++)
         {
           JsonObject nextOccurrence = nextData.createNestedObject();
-          JsonArray nextOcurenceZones = nextOccurrence.createNestedArray("zones");
-          nextOcurenceZones.add(nextList[i].zones.zone1);
-          nextOcurenceZones.add(nextList[i].zones.zone2);
-          nextOcurenceZones.add(nextList[i].zones.zone3);
-          nextOcurenceZones.add(nextList[i].zones.zone4);
+          JsonArray nextOcurenceChannels = nextOccurrence.createNestedArray("channels");
+          for (byte n = 0; n < CHANNELS_COUNT; n++)
+          {
+            nextOcurenceChannels.add(nextList[i].channels[n]);
+          }
           nextOccurrence["from"] = nextList[i].start.asEpoch();
           nextOccurrence["to"] = nextList[i].finish.asEpoch();
           nextOccurrence["elapsed"] = (nextList[i].start - Chronos::DateTime::now()).totalSeconds();
