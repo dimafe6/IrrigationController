@@ -441,7 +441,7 @@ void sendSysInfoToWS()
   sendDocumentToWs(sysInfo);
 }
 
-void getChannelsFromJson(const JsonArray &arr, bool* _channels)
+void getChannelsFromJson(const JsonArray &arr, bool *_channels)
 {
   for (int channel : arr)
   {
@@ -1029,6 +1029,9 @@ void initSerial()
   HC12.begin(BAUD_RATE, SERIAL_8N1, HC_12_RX, HC_12_TX);
   SIM800.begin(BAUD_RATE);
   sendATCommand("AT");
+  
+  bool _channels[CHANNELS_COUNT] = {false};
+  processRemoteChannels(_channels);
 }
 
 void checkCalendar()
@@ -1078,6 +1081,8 @@ void checkCalendar()
     digitalWrite(LOAD_MOSFET_1, _channels[2] ? HIGH : LOW);
     digitalWrite(LOAD_MOSFET_2, _channels[3] ? HIGH : LOW);
 
+    processRemoteChannels(_channels);
+
     if (ws.count() > 0)
     {
       DynamicJsonDocument ongoing(4000);
@@ -1125,6 +1130,18 @@ void checkCalendar()
         sendDocumentToWs(next);
       }
     }
+  }
+}
+
+void processRemoteChannels(bool *_channels)
+{
+  // Process remote channels
+  for (byte n = 4; n < CHANNELS_COUNT; n++)
+  {
+    DynamicJsonDocument remoteChannel(128);
+    remoteChannel["ch"] = n;
+    remoteChannel["st"] = _channels[n];
+    serializeJson(remoteChannel, HC12);
   }
 }
 
