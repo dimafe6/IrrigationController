@@ -180,6 +180,67 @@
 </head>
 
 <body>
+    <div style="display: none" id="dash-channel-status-block">
+        <div class="col-md-3 col-sm-6">
+            <div class="panel zone-panel">
+                <div class="heading-elements">
+                    <span class="badge bg-info heading-text">
+                        <i class="fa"></i>
+                    </span>
+                </div>
+                <div class="panel-body channel-id" data-zone="">
+                    <h3 class="no-margin channel-name"></h3>
+                    <div class="next-start">
+                        <div>
+                            <span>Next start in: </span>
+                            <span class="next-start-date">N/A</span>
+                        </div>
+                        <div>
+                            <span>Next finish in: </span>
+                            <span class="next-finish-date">N/A</span>
+                        </div>
+                        <div>
+                            <span>Duration: </span>
+                            <span class="next-duration">N/A</span>
+                        </div>
+                        <div>
+                            <span>Elapsed: </span>
+                            <span class="next-elapsed">N/A</span>
+                        </div>
+                        <div>
+                            <span>Event name: </span>
+                            <span class="event-name">N/A</span>
+                        </div>
+                    </div>
+                    <div class="running-info">
+                        <div>
+                            <span>Started in: </span>
+                            <span class="start-date">N/A</span>
+                        </div>
+                        <div>
+                            <span>Finish in: </span>
+                            <span class="finish-date">N/A</span>
+                        </div>
+                        <div>
+                            <span>Duration: </span>
+                            <span class="duration">N/A</span>
+                        </div>
+                        <div>
+                            <span>Elapsed: </span>
+                            <span class="elapsed-time">N/A</span>
+                        </div>
+                        <div>
+                            <span>Event name: </span>
+                            <span class="event-name">N/A</span>
+                        </div>
+                        <div style="float: right;">
+                            <button class="btn btn-warning skip-btn">Skip</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
     <nav class="navbar navbar-inverse navbar-static-top">
         <div class="container">
             <div class="navbar-header">
@@ -259,211 +320,8 @@
                         <div class="page-header text-center">
                             <h2>Dashboard</h2>
                         </div>
-                        <div class="col-md-12" id="zone-statuses">
-                            <div class="col-md-3 col-sm-6">
-                                <div class="panel zone-panel">
-                                    <div class="heading-elements">
-                                        <span class="badge bg-info heading-text">
-                                            <i class="fa"></i>
-                                        </span>
-                                    </div>
-                                    <div class="panel-body" data-zone="1">
-                                        <h3 class="no-margin">Relay 1</h3>
-                                        <div class="next-start">
-                                            <div>
-                                                <span>Next start in: </span>
-                                                <span class="next-start-date">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Next finish in: </span>
-                                                <span class="next-finish-date">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Duration: </span>
-                                                <span class="next-duration">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Elapsed: </span>
-                                                <span class="next-elapsed">N/A</span>
-                                            </div>
-                                        </div>
-                                        <div class="running-info">
-                                            <div>
-                                                <span>Started in: </span>
-                                                <span class="start-date">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Finish in: </span>
-                                                <span class="finish-date">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Duration: </span>
-                                                <span class="duration">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Elapsed: </span>
-                                                <span class="elapsed-time">N/A</span>
-                                            </div>
-                                            <div style="float: right;">
-                                                <button class="btn btn-warning skip-btn">Skip</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-3 col-sm-6">
-                                <div class="panel zone-panel">
-                                    <div class="heading-elements">
-                                        <span class="badge bg-info heading-text">
-                                            <i class="fa"></i>
-                                        </span>
-                                    </div>
-                                    <div class="panel-body" data-zone="2">
-                                        <h3 class="no-margin">Relay 2</h3>
-                                        <div class="next-start">
-                                            <div>
-                                                <span>Next start in: </span>
-                                                <span class="next-start-date">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Next finish in: </span>
-                                                <span class="next-finish-date">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Duration: </span>
-                                                <span class="next-duration">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Elapsed: </span>
-                                                <span class="next-elapsed">N/A</span>
-                                            </div>
-                                        </div>
-                                        <div class="running-info">
-                                            <div>
-                                                <span>Started in: </span>
-                                                <span class="start-date">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Finish in: </span>
-                                                <span class="finish-date">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Duration: </span>
-                                                <span class="duration">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Elapsed: </span>
-                                                <span class="elapsed-time">N/A</span>
-                                            </div>
-                                            <div style="float: right;">
-                                                <button class="btn btn-warning skip-btn">Skip</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-3 col-sm-6">
-                                <div class="panel zone-panel">
-                                    <div class="heading-elements">
-                                        <span class="badge bg-info heading-text">
-                                            <i class="fa"></i>
-                                        </span>
-                                    </div>
-                                    <div class="panel-body" data-zone="3">
-                                        <h3 class="no-margin">Mosfet 1</h3>
-                                        <div class="next-start">
-                                            <div>
-                                                <span>Next start in: </span>
-                                                <span class="next-start-date">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Next finish in: </span>
-                                                <span class="next-finish-date">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Duration: </span>
-                                                <span class="next-duration">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Elapsed: </span>
-                                                <span class="next-elapsed">N/A</span>
-                                            </div>
-                                        </div>
-                                        <div class="running-info">
-                                            <div>
-                                                <span>Started in: </span>
-                                                <span class="start-date">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Finish in: </span>
-                                                <span class="finish-date">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Duration: </span>
-                                                <span class="duration">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Elapsed: </span>
-                                                <span class="elapsed-time">N/A</span>
-                                            </div>
-                                            <div style="float: right;">
-                                                <button class="btn btn-warning skip-btn">Skip</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-3 col-sm-6">
-                                <div class="panel zone-panel">
-                                    <div class="heading-elements">
-                                        <span class="badge bg-info heading-text">
-                                            <i class="fa"></i>
-                                        </span>
-                                    </div>
-                                    <div class="panel-body" data-zone="4">
-                                        <h3 class="no-margin">Mosfet 2</h3>
-                                        <div class="next-start">
-                                            <div>
-                                                <span>Next start in: </span>
-                                                <span class="next-start-date">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Next finish in: </span>
-                                                <span class="next-finish-date">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Duration: </span>
-                                                <span class="next-duration">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Elapsed: </span>
-                                                <span class="next-elapsed">N/A</span>
-                                            </div>
-                                        </div>
-                                        <div class="running-info">
-                                            <div>
-                                                <span>Started in: </span>
-                                                <span class="start-date">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Finish in: </span>
-                                                <span class="finish-date">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Duration: </span>
-                                                <span class="duration">N/A</span>
-                                            </div>
-                                            <div>
-                                                <span>Elapsed: </span>
-                                                <span class="elapsed-time">N/A</span>
-                                            </div>
-                                            <div style="float: right;">
-                                                <button class="btn btn-warning skip-btn">Skip</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                        <div class="col-md-12" id="channel-statuses">
+                            
                         </div>
                         <div class="col-md-12">
                             <div class="col-md-3 col-sm-6">
@@ -600,16 +458,16 @@
                             <div class="form-group text-center" id="manual-mode-zones">
                                 <div class="btn-group btn-group-justified" data-toggle="buttons">
                                     <label class="btn btn-sm btn-default active">
-                                        <input type="checkbox" value="1" class="zone1">Relay 1
+                                        <input type="checkbox" value="0" class="zone1">Relay 1
                                     </label>
                                     <label class="btn btn-sm btn-default">
-                                        <input type="checkbox" value="2" class="zone2">Relay 2
+                                        <input type="checkbox" value="1" class="zone2">Relay 2
                                     </label>
                                     <label class="btn btn-sm btn-default">
-                                        <input type="checkbox" value="3" class="zone3">Mosfet 1
+                                        <input type="checkbox" value="2" class="zone3">Mosfet 1
                                     </label>
                                     <label class="btn btn-sm btn-default">
-                                        <input type="checkbox" value="4" class="zone4">Mosfet 2
+                                        <input type="checkbox" value="3" class="zone4">Mosfet 2
                                     </label>
                                 </div>
                             </div>
@@ -648,16 +506,16 @@
                                 <div class="form-group text-center" id="schedule-mode-zones">
                                     <div class="btn-group btn-group-justified" data-toggle="buttons">
                                         <label class="btn btn-sm btn-default active">
-                                            <input type="checkbox" value="1" class="zone1">Relay 1
+                                            <input type="checkbox" value="0" class="zone1">Relay 1
                                         </label>
                                         <label class="btn btn-sm btn-default">
-                                            <input type="checkbox" value="2" class="zone2">Relay 2
+                                            <input type="checkbox" value="1" class="zone2">Relay 2
                                         </label>
                                         <label class="btn btn-sm btn-default">
-                                            <input type="checkbox" value="3" class="zone3">Mosfet 1
+                                            <input type="checkbox" value="2" class="zone3">Mosfet 1
                                         </label>
                                         <label class="btn btn-sm btn-default">
-                                            <input type="checkbox" value="4" class="zone4">Mosfet 2
+                                            <input type="checkbox" value="3" class="zone4">Mosfet 2
                                         </label>
                                     </div>
                                 </div>

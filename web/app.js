@@ -6,12 +6,23 @@ var calendarEvents = [];
 var availableSlots;
 var calendar;
 var memChart;
+const zoneNames = ["Relay 1", "Relay 2", "Mosfet 1", "Mosfet 2"];
 
 window.addEventListener('beforeunload', (event) => {
     ws.close();
 });
 
 $(document).ready(function () {
+    var channelsTemplate = $("#dash-channel-status-block div:first").clone();
+    var channelBlock = $("#channel-statuses");
+    $.each(zoneNames, function (key, name) {
+        var channelStatus = channelsTemplate.clone();
+        channelStatus.find('.channel-id').attr('data-zone', key);
+        channelStatus.find('.channel-name').html(name);
+        channelStatus.show();
+        channelBlock.append(channelStatus);
+    });
+
     setInterval(function () {
         getSysInfo();
     }, 5000);
@@ -248,7 +259,7 @@ $(document).ready(function () {
         $('#schedule-mode .cancel-edit-schedule').show();
 
         $('#schedule-mode-zones label').removeClass('active');
-        $.each(slot.zones, function (index, value) {
+        $.each(slot.channels, function (index, value) {
             $('#schedule-mode-zones input[value="' + value + '"]').parent().addClass('active');
         });
 
@@ -361,7 +372,13 @@ $(document).ready(function () {
 
     $(document).on('click', '.running-info .skip-btn', function () {
         var evId = parseInt($(this).closest('.running-info').attr('data-evid'));
-        skipEvent(evId);
+        if (evId === 25) {
+            if (confirm("Are you sure?")) {
+                stopManualIrrigation();
+            }
+        } else {
+            skipEvent(evId);
+        }
     });
 });
 
@@ -439,14 +456,14 @@ function processSlots(data = null) {
             if (null !== slot) {
                 var duration = moment.duration(slot.duration, 'minutes').format('HH[h]:mm[m]');
                 var periodicity = periodicityList[slot.periodicity] || null;
-                var zones = slot.zones ? JSON.stringify(slot.zones) : '';
+                var channels = slot.channels ? JSON.stringify(slot.channels) : '';
                 var color = enabled ? "#333" : "#999";
 
                 tr = `<tr data-enabled="${enabled}" style="color: ${color}">
                     <td class="evId" data-evid="${i}">${i}</td>
                     <td>${periodicity}</td>
                     <td>${duration}</td>
-                    <td>${zones}</td>
+                    <td>${channels}</td>
                     ${actions}
                     </tr>`;
             }
@@ -557,11 +574,10 @@ function WebSocketBegin(location) {
                         break;
                     case 'ongoingEvents':
                         $('.zone-panel').removeClass('active');
-                        $('.start-date, .finish-date, .elapsed-time').html("N/A");
+                        $('.start-date, .finish-date, .elapsed-time, event-name').html("N/A");
                         $.each(data, function (index, occurence) {
-                            $.each(occurence.zones, function (index, zone) {
-                                var zoneId = index + 1;
-                                var $zonePanelBody = $('div[data-zone="' + zoneId + '"]');
+                            $.each(occurence.channels, function (index, zone) {
+                                var $zonePanelBody = $('div[data-zone="' + index + '"]');
                                 var $zonePanel = $zonePanelBody.closest('.zone-panel');
                                 if (zone && !$zonePanel.hasClass('active')) {
                                     var startDate = getMomentFromEpoch(occurence.from);
@@ -571,6 +587,7 @@ function WebSocketBegin(location) {
                                     $zonePanel.find('.finish-date').html(finishDate.format('YYYY-MM-DD HH:mm:ss'));
                                     $zonePanel.find('.duration').html(moment.duration((finishDate - startDate), "milliseconds").format("D[d] H[h] m[m] s[s]"));
                                     $zonePanel.find('.elapsed-time').html(elapsed);
+                                    $zonePanel.find('.event-name').html(occurence.evId === 25 ? "Manual" : calendarEvents.slots[occurence.evId].title);
                                     $zonePanel.addClass('active');
                                     $zonePanelBody.find('.running-info').attr("data-evid", occurence.evId);
                                 }
@@ -578,11 +595,10 @@ function WebSocketBegin(location) {
                         });
                         break;
                     case 'nextEvents':
-                        $('.next-start-date, .next-finish-date, .next-elapsed, .next-duration').html("N/A");
+                        $('.next-start-date, .next-finish-date, .next-elapsed, .next-duration, event-name').html("N/A");
                         $.each(data, function (index, occurence) {
-                            $.each(occurence.zones, function (index, zone) {
-                                var zoneId = index + 1;
-                                var $zonePanelBody = $('div[data-zone="' + zoneId + '"]:not(.active)');
+                            $.each(occurence.channels, function (index, zone) {
+                                var $zonePanelBody = $('div[data-zone="' + index + '"]:not(.active)');
                                 var $zonePanel = $zonePanelBody.closest('.zone-panel');
                                 if (zone) {
                                     var startDate = getMomentFromEpoch(occurence.from);
@@ -592,6 +608,7 @@ function WebSocketBegin(location) {
                                     $zonePanel.find('.next-finish-date').html(finishDate.format('YYYY-MM-DD HH:mm:ss'));
                                     $zonePanel.find('.next-duration').html(moment.duration((finishDate - startDate), "milliseconds").format("D[d] H[h] m[m] s[s]"));
                                     $zonePanel.find('.next-elapsed').html(elapsed);
+                                    $zonePanel.find('.event-name').html(occurence.evId === 25 ? "Manual" : calendarEvents.slots[occurence.evId].title);
                                 }
                             });
                         });
@@ -636,7 +653,7 @@ function manualIrrigation() {
         }
     });
     command.data.duration = parseInt($('#duration').val());
-    command.data.zones = checked;
+    command.data.channels = checked;
 
     ws.send(JSON.stringify(command));
 }
@@ -654,7 +671,7 @@ function getSchedule() {
     });
 
     eventSlot.duration = parseInt($scheduleBlock.find('.duration').val());
-    eventSlot.zones = checked;
+    eventSlot.channels = checked;
     eventSlot.title = $('.event-title').val();
     // If edit event
     if (!isNaN(evId)) {
@@ -752,7 +769,7 @@ function getSchedule() {
 }
 
 function getExplanationForSchedule(scheduleObject) {
-    let zonesString = scheduleObject.zones.join(', ');
+    let zonesString = scheduleObject.channels.join(', ');
     let durationStr = moment.duration(scheduleObject.duration, 'minutes').format('HH[h]:mm[m]');
     let title = "";
 

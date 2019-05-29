@@ -584,7 +584,7 @@ void loadManualIrrigationFromSD()
   JsonObject eventData = manual.as<JsonObject>();
 
   int duration = eventData["duration"];
-  bool _channels[CHANNELS_COUNT];
+  bool _channels[CHANNELS_COUNT] = {false};
   getChannelsFromJson(eventData["channels"], _channels);
   Chronos::EpochTime from = eventData["from"];
   Chronos::EpochTime to = eventData["to"];
@@ -627,6 +627,7 @@ void addOrEditSchedule(const JsonObject &eventData)
     Serial.println("");
     Serial.print("Edit schedule #");
     Serial.println(evId);
+    eventData.remove("skipUntil");
     eventData["enabled"] = MyCalendar.isEnabled(evId);
     MyCalendar.removeAll(evId);
   }
@@ -678,7 +679,7 @@ void addOrEditSchedule(const JsonObject &eventData)
 bool addEventToCalendar(byte evId, const JsonObject &eventData)
 {
   int duration = eventData["duration"];
-  bool _channels[CHANNELS_COUNT];
+  bool _channels[CHANNELS_COUNT] = {false};
   getChannelsFromJson(eventData["channels"], _channels);
   byte periodicity = eventData["periodicity"];
   bool eventSaved = false;
@@ -772,7 +773,7 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
 void addManualEventToCalendar(const JsonObject &eventData)
 {
   int duration = eventData["duration"];
-  bool _channels[CHANNELS_COUNT];
+  bool _channels[CHANNELS_COUNT] = {false};
   getChannelsFromJson(eventData["channels"], _channels);
 
   File manualFile = SD.open(MANUAL_IRRIGATION_FILE_NAME, FILE_WRITE);
@@ -1026,7 +1027,7 @@ void initSPIFFS()
 void initSerial()
 {
   Serial.begin(BAUD_RATE);
-  HC12.begin(BAUD_RATE, SERIAL_8N1, HC_12_RX, HC_12_TX);
+  HC12.begin(BAUD_RATE_RADIO, SERIAL_8N1, HC_12_RX, HC_12_TX);
   SIM800.begin(BAUD_RATE);
   sendATCommand("AT");
   
@@ -1097,7 +1098,7 @@ void checkCalendar()
           JsonArray ocurenceChannels = occurrence.createNestedArray("channels");
           for (byte n = 0; n < CHANNELS_COUNT; n++)
           {
-            ocurenceChannels.add(occurrenceList[i].channels[n]);
+            ocurenceChannels.add(occurrenceList[i].channels[n] ? 1 : 0);
           }
           occurrence["from"] = occurrenceList[i].start.asEpoch();
           occurrence["to"] = occurrenceList[i].finish.asEpoch();
@@ -1119,7 +1120,7 @@ void checkCalendar()
           JsonArray nextOcurenceChannels = nextOccurrence.createNestedArray("channels");
           for (byte n = 0; n < CHANNELS_COUNT; n++)
           {
-            nextOcurenceChannels.add(nextList[i].channels[n]);
+            nextOcurenceChannels.add(nextList[i].channels[n] ? 1 : 0);
           }
           nextOccurrence["from"] = nextList[i].start.asEpoch();
           nextOccurrence["to"] = nextList[i].finish.asEpoch();
@@ -1140,7 +1141,7 @@ void processRemoteChannels(bool *_channels)
   {
     DynamicJsonDocument remoteChannel(128);
     remoteChannel["ch"] = n;
-    remoteChannel["st"] = _channels[n];
+    remoteChannel["st"] = _channels[n] ? 1 : 0;
     serializeJson(remoteChannel, HC12);
   }
 }
@@ -1186,7 +1187,7 @@ void updateWeatherData(int temp, int pressure, int humidity, int light, int wate
   data["waterTemp"] = weatherData.waterTemp;
   data["rain"] = weatherData.rain;
   data["groundHum"] = weatherData.groundHum;
-
+    
   sendDocumentToWs(answer);
 }
 
