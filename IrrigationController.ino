@@ -8,6 +8,7 @@
 #include "SD.h"
 #include <ESPAsyncWebServer.h>
 #include <SPIFFSEditor.h>
+#include <HTTPClient.h>
 #include <Time.h>
 #include <Update.h>
 #include "src/Chronos/src/Chronos.h"
@@ -1030,7 +1031,7 @@ void initSerial()
   HC12.begin(BAUD_RATE_RADIO, SERIAL_8N1, HC_12_RX, HC_12_TX);
   SIM800.begin(BAUD_RATE);
   sendATCommand("AT");
-  
+
   bool _channels[CHANNELS_COUNT] = {false};
   processRemoteChannels(_channels);
 }
@@ -1187,7 +1188,7 @@ void updateWeatherData(int temp, int pressure, int humidity, int light, int wate
   data["waterTemp"] = weatherData.waterTemp;
   data["rain"] = weatherData.rain;
   data["groundHum"] = weatherData.groundHum;
-    
+
   sendDocumentToWs(answer);
 }
 
@@ -1220,6 +1221,23 @@ void listenRadio()
           sendWeatherDataToThingSpeak(); //TODO: Run in second core
         }
       }
+    }
+  }
+}
+
+void getWeatherFromOpenWeatherMap()
+{
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    HTTPClient http;
+    http.begin(OWM_ENDPOINT + OWM_APP_ID_PARAM);
+    int httpCode = http.GET();
+
+    if (httpCode > 0)
+    {}
+      String payload = http.getString();
+      Serial.println(httpCode);
+      Serial.println(payload);
     }
   }
 }

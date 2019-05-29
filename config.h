@@ -54,3 +54,6 @@
 #define SAVE_STATISTIC_INTERVAL 5000
 #define WATER_STATISTIC_FILE "/water_statistic_%d_%d.json"
 #define STATISTIC_FILE_SIZE 5000
+
+/* Openweathermap */
+#define OWM_ENDPOINT = "https://api.openweathermap.org/data/2.5/weather?id=706200&lang=ru"
