@@ -574,7 +574,8 @@ function WebSocketBegin(location) {
                         break;
                     case 'ongoingEvents':
                         $('.zone-panel').removeClass('active');
-                        $('.start-date, .finish-date, .elapsed-time, event-name').html("N/A");
+                        $('.start-date, .finish-date, .elapsed-time, .event-name').html("N/A");
+                        data.sort(compareOccurences);
                         $.each(data, function (index, occurence) {
                             $.each(occurence.channels, function (index, zone) {
                                 var $zonePanelBody = $('div[data-zone="' + index + '"]');
@@ -595,7 +596,8 @@ function WebSocketBegin(location) {
                         });
                         break;
                     case 'nextEvents':
-                        $('.next-start-date, .next-finish-date, .next-elapsed, .next-duration, event-name').html("N/A");
+                        $('.next-start-date, .next-finish-date, .next-elapsed, .next-duration, .event-name').html("N/A");
+                        data.sort(compareOccurences);
                         $.each(data, function (index, occurence) {
                             $.each(occurence.channels, function (index, zone) {
                                 var $zonePanelBody = $('div[data-zone="' + index + '"]:not(.active)');
@@ -635,6 +637,10 @@ function WebSocketBegin(location) {
     } else {
         notify('WebSocket NOT supported by your Browser!', 'danger');
     }
+}
+
+function compareOccurences(a, b) {
+    return a.from < b.from ? 1 : -1;
 }
 
 function manualIrrigation() {
