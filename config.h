@@ -17,9 +17,6 @@
 #define LOAD_MOSFET_1 19 // Mosfet 1
 #define LOAD_MOSFET_2 18 // Mosfet 2
 
-/* Thing Speak configuration */
-#define THING_SPEAK_WRITE_INTERVAL 900000
-
 /* RTC */
 #define RTC_SYNC_INTERVAL 60000
 
@@ -56,4 +53,4 @@
 #define STATISTIC_FILE_SIZE 5000
 
 /* Openweathermap */
-#define OWM_ENDPOINT = "https://api.openweathermap.org/data/2.5/weather?id=706200&lang=ru"
+#define OWM_ENDPOINT "https://api.openweathermap.org/data/2.5/weather?id=706200&lang=ru&appid=0d05fb0926034f4a849664441742cf69&units=metric"
