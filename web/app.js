@@ -620,6 +620,9 @@ function WebSocketBegin(location) {
                         $('#water-day').text(data['curDay']);
                         $('#water-month').text(data['curMonth']);
                         break;
+                    case 'weatherUpdate':
+                        
+                        break;
                 }
             }
         };
