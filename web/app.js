@@ -23,14 +23,6 @@ $(document).ready(function () {
         channelBlock.append(channelStatus);
     });
 
-    setInterval(function () {
-        getSysInfo();
-    }, 5000);
-
-    setInterval(function () {
-        getWaterInfo();
-    }, 1000);
-
     moment.updateLocale('en', {
         week: {
             dow: 0,
@@ -168,11 +160,11 @@ $(document).ready(function () {
     $('.time-hours').pickatime({
         format: 'HH',
         interval: 60,
-        min: [1, 0],
+        min: [2, 0],
         max: [23, 0],
         clear: '',
         onSet: getSchedule
-    }).pickatime('picker').set('select', 1);
+    }).pickatime('picker').set('select', 2);
 
     $('.time-day-of-month').pickatime({
         format: 'i',
@@ -236,7 +228,7 @@ $(document).ready(function () {
 
     $(document).on('click', '.event-actions .action-remove', function () {
         var evId = parseInt($(this).closest('tr').find('td:first').text());
-        removeEvent(evId);
+        removeEvent(evId);        
     });
 
     $(document).on('click', '.event-actions .action-edit', function () {
@@ -257,8 +249,9 @@ $(document).ready(function () {
         $('#schedule-mode .add-schedule').hide();
         $('#schedule-mode .save-schedule').show();
         $('#schedule-mode .cancel-edit-schedule').show();
-
+        $('#schedule-mode .event-title').val(slot.title);
         $('#schedule-mode-zones label').removeClass('active');
+
         $.each(slot.channels, function (index, value) {
             $('#schedule-mode-zones input[value="' + value + '"]').parent().addClass('active');
         });
@@ -380,6 +373,8 @@ $(document).ready(function () {
             skipEvent(evId);
         }
     });
+
+    $(document).on('click', 'a[href="#schedule-mode"]', function() {getSchedule();});
 });
 
 function getMomentFromEpoch(epoch) {
@@ -506,6 +501,7 @@ function WebSocketBegin(location) {
                     case 'getSlots':
                         processSlots(data);
                         $('.add-schedule').prop("disabled", !(availableSlots > 0));
+                        getSchedule();
                         break;
                     case 'getSysInfo':
                         if (data['WiFi']) {
@@ -574,7 +570,7 @@ function WebSocketBegin(location) {
                         break;
                     case 'ongoingEvents':
                         $('.zone-panel').removeClass('active');
-                        $('.start-date, .finish-date, .elapsed-time, .event-name').html("N/A");
+                        $('.start-date, .finish-date, .elapsed-time, .running-info .event-name').html("N/A");
                         data.sort(compareOccurences);
                         $.each(data, function (index, occurence) {
                             $.each(occurence.channels, function (index, zone) {
@@ -588,7 +584,7 @@ function WebSocketBegin(location) {
                                     $zonePanel.find('.finish-date').html(finishDate.format('YYYY-MM-DD HH:mm:ss'));
                                     $zonePanel.find('.duration').html(moment.duration((finishDate - startDate), "milliseconds").format("D[d] H[h] m[m] s[s]"));
                                     $zonePanel.find('.elapsed-time').html(elapsed);
-                                    $zonePanel.find('.event-name').html(occurence.evId === 25 ? "Manual" : calendarEvents.slots[occurence.evId].title);
+                                    $zonePanel.find('.running-info .event-name').html(occurence.evId === 25 ? "Manual" : calendarEvents.slots[occurence.evId].title);
                                     $zonePanel.addClass('active');
                                     $zonePanelBody.find('.running-info').attr("data-evid", occurence.evId);
                                 }
@@ -596,7 +592,7 @@ function WebSocketBegin(location) {
                         });
                         break;
                     case 'nextEvents':
-                        $('.next-start-date, .next-finish-date, .next-elapsed, .next-duration, .event-name').html("N/A");
+                        $('.next-start-date, .next-finish-date, .next-elapsed, .next-duration, .next-start .event-name').html("N/A");
                         data.sort(compareOccurences);
                         $.each(data, function (index, occurence) {
                             $.each(occurence.channels, function (index, zone) {
@@ -610,7 +606,7 @@ function WebSocketBegin(location) {
                                     $zonePanel.find('.next-finish-date').html(finishDate.format('YYYY-MM-DD HH:mm:ss'));
                                     $zonePanel.find('.next-duration').html(moment.duration((finishDate - startDate), "milliseconds").format("D[d] H[h] m[m] s[s]"));
                                     $zonePanel.find('.next-elapsed').html(elapsed);
-                                    $zonePanel.find('.event-name').html(occurence.evId === 25 ? "Manual" : calendarEvents.slots[occurence.evId].title);
+                                    $zonePanel.find('.next-start .event-name').html(occurence.evId === 25 ? "Manual" : calendarEvents.slots[occurence.evId].title);
                                 }
                             });
                         });
@@ -621,7 +617,13 @@ function WebSocketBegin(location) {
                         $('#water-month').text(data['curMonth']);
                         break;
                     case 'weatherUpdate':
-                        
+                        $('.w-temp').html(`${data.temp}°C`);
+                        $('.w-press').html(`${data.pressure} hPa`);
+                        $('.w-hum').html(`${data.humidity}%`);
+                        $('.w-light').html(`${data.light} lux`);
+                        $('.w-water-temp').html(`${data.waterTemp}°C`);
+                        $('.w-rain').html(`${data.rain}`);
+                        $('.w-ground-hum').html(`${data.groundHum}`);
                         break;
                 }
             }
@@ -781,7 +783,7 @@ function getExplanationForSchedule(scheduleObject) {
     let zonesString = scheduleObject.channels.join(', ');
     let durationStr = moment.duration(scheduleObject.duration, 'minutes').format('HH[h]:mm[m]');
     let title = "";
-
+    var on = "";
     var getExampleText = function (currDate, scheduleObject) {
         var endDate = moment(currDate);
         var format = 'YYYY-MM-DD HH:mm:ss';
@@ -791,8 +793,9 @@ function getExplanationForSchedule(scheduleObject) {
 
     switch (scheduleObject.periodicity) {
         case 0:
-            var currDate = moment();
+            var currDate = moment();            
             currDate.minute(scheduleObject.minute).second(scheduleObject.second);
+            on = `${currDate.format('mm:ss')}`;
             explanationString = `Irrigation for zone(s) ${zonesString} every hour on ${currDate.format('mm[m]:ss[s]')} with a duration of ${durationStr}\n`;
             title = "Every hour";
 
@@ -802,8 +805,9 @@ function getExplanationForSchedule(scheduleObject) {
             }
             break;
         case 1:
-            var currDate = moment();
+            var currDate = moment();            
             currDate.minute(scheduleObject.minute).second(scheduleObject.second);
+            on = `${currDate.format('mm:ss')}`;
             explanationString = `Irrigation for zone(s) ${zonesString} every ${scheduleObject.hours} hours on ${currDate.format('mm[m]:ss[s]')} with a duration of ${durationStr}\n`;
             title = `Every ${scheduleObject.hours} hours`;
 
@@ -813,9 +817,10 @@ function getExplanationForSchedule(scheduleObject) {
             }
             break;
         case 2:
-            var currDate = moment();
+            var currDate = moment();            
             currDate.hour(scheduleObject.hour).minute(scheduleObject.minute).second(0);
-            explanationString = `Irrigation for zone(s) ${zonesString} every day on ${currDate.format('hh[h]:mm[m][00s]')} with a duration of ${durationStr}\n`;
+            on = `${currDate.format('HH:mm')}`;
+            explanationString = `Irrigation for zone(s) ${zonesString} every day on ${currDate.format('HH[h]:mm[m][00s]')} with a duration of ${durationStr}\n`;
             title = `Every day`;
 
             for (var i = 0; i < 3; i++) {
@@ -826,7 +831,8 @@ function getExplanationForSchedule(scheduleObject) {
         case 3:
             var currDate = moment();
             currDate.hour(scheduleObject.hour).minute(scheduleObject.minute).second(0);
-            explanationString = `Irrigation for zone(s) ${zonesString} every ${scheduleObject.days} days on ${currDate.format('hh[h]:mm[m][00s]')} with a duration of ${durationStr}\n`;
+            on = `${currDate.format('HH:mm')}`;
+            explanationString = `Irrigation for zone(s) ${zonesString} every ${scheduleObject.days} days on ${currDate.format('HH[h]:mm[m][00s]')} with a duration of ${durationStr}\n`;
             title = `Every ${scheduleObject.days} days`;
 
             for (var i = 0; i < 3; i++) {
@@ -838,7 +844,8 @@ function getExplanationForSchedule(scheduleObject) {
             var currDate = moment();
             var dayOfWeekStr = weekNames[scheduleObject.dayOfWeek - 1];
             currDate.day(scheduleObject.dayOfWeek - 1).hour(scheduleObject.hour).minute(scheduleObject.minute).second(0);
-            explanationString = `Irrigation for zone(s) ${zonesString} every ${dayOfWeekStr} on ${currDate.format('hh[h]:mm[m][00s]')} with a duration of ${durationStr}\n`;
+            on = `${currDate.format('HH:mm')}`;
+            explanationString = `Irrigation for zone(s) ${zonesString} every ${dayOfWeekStr} on ${currDate.format('HH[h]:mm[m][00s]')} with a duration of ${durationStr}\n`;
             title = `Every ${dayOfWeekStr}`;
 
             for (var i = 0; i < 3; i++) {
@@ -850,7 +857,8 @@ function getExplanationForSchedule(scheduleObject) {
             var currDate = moment();
             currDate.hour(scheduleObject.hour).minute(scheduleObject.minute).second(0);
             currDate.date(scheduleObject.dayOfMonth);
-            explanationString = `Irrigation for zone(s) ${zonesString} every month on ${currDate.format('hh[h]:mm[m][00s]')} with a duration of ${durationStr}\n`;
+            on = `${currDate.format('HH:mm')}`;
+            explanationString = `Irrigation for zone(s) ${zonesString} every month on ${currDate.format('HH[h]:mm[m][00s]')} with a duration of ${durationStr}\n`;
             title = `Every month`;
 
             for (var i = 0; i < 3; i++) {
@@ -861,7 +869,7 @@ function getExplanationForSchedule(scheduleObject) {
     }
 
     var total = parseInt(calendarEvents.occupied) || 0;
-    title = `${total}. ${title}`;
+    title = `${total}. ${title} on ${on}`;
 
     $('.event-title').val(title);
 

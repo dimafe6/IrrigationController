@@ -6,6 +6,10 @@
 #define HC_12_UPDATE_INTERVAL 2000
 #define PRINTLN(...)  Serial.println(__VA_ARGS__)
 
+/* System */
+#define WS_SYS_INFO_INTERVAL 5000
+#define WS_WATER_INFO_INTERVAL 5000
+
 /* Flow sensor */
 #define FLOW_SENSOR_PIN 34
 #define FLOW_SENSOR_CALIBRATION 6.5
@@ -51,6 +55,3 @@
 #define SAVE_STATISTIC_INTERVAL 5000
 #define WATER_STATISTIC_FILE "/water_statistic_%d_%d.json"
 #define STATISTIC_FILE_SIZE 5000
-
-/* Openweathermap */
-#define OWM_ENDPOINT "https://api.openweathermap.org/data/2.5/weather?id=706200&lang=ru&appid=0d05fb0926034f4a849664441742cf69&units=metric"

@@ -5,7 +5,6 @@
 #include <FS.h>
 #include <SPIFFS.h>
 #include "SD.h"
-#include <HTTPClient.h>
 #include <ESPAsyncWebServer.h>
 #include <SPIFFSEditor.h>
 #include <Time.h>
@@ -22,7 +21,6 @@ DefineCalendarType(Calendar, CALENDAR_MAX_NUM_EVENTS);
 Calendar MyCalendar;
 AsyncWebHandler *spiffsEditorHandler;
 AsyncWebHandler *sdEditorHandler;
-TaskHandle_t OWMHandler;
 
 enum Periodicity
 {
@@ -44,8 +42,6 @@ struct WeatherData
   int waterTemp = NULL;
   int rain = NULL;
   int groundHum = NULL;
-  unsigned int OWMMainId = 0;
-  float OWMRain3h = 0;
 } weatherData;
 
 unsigned long HC12LastUpdate = 0;
@@ -55,6 +51,8 @@ unsigned long balanceLastCheck = CHECK_BALANCE_INTERVAL;
 unsigned long GSMStatusLastCheck = CHECK_STATUS_INTERVAL;
 unsigned long flowPrevTime = 0;
 unsigned long saveStatisticPrevTime = 0;
+unsigned long sendSysInfoPrevTime = WS_SYS_INFO_INTERVAL;
+unsigned long sendWaterInfoPrevTime = WS_WATER_INFO_INTERVAL;
 
 int currentBalance = NULL;
 byte CREGCode = 0;
@@ -80,14 +78,6 @@ void setup()
   initSPIFFS();
   initWiFi();
   initWebServer();
-  xTaskCreatePinnedToCore(
-      getWeatherFromOpenWeatherMap,
-      "OWM",
-      1000,
-      NULL,
-      0,
-      &OWMHandler,
-      0);
 }
 
 void loop()
@@ -106,6 +96,8 @@ void loop()
   checkGSMStatus();
   flowCalculate();
   saveStatistic();
+  sendSysInfoToWS();
+  sendWaterInfoToWS();
 }
 
 void initPins()
@@ -149,10 +141,6 @@ void saveStatistic()
 {
   if ((millis() - saveStatisticPrevTime) > SAVE_STATISTIC_INTERVAL)
   {
-    Serial.println("");
-    Serial.print("Saving statistics...");
-    unsigned long start = millis();
-
     Chronos::DateTime nowTime(Chronos::DateTime::now());
 
     char fileName[30];
@@ -206,27 +194,26 @@ void saveStatistic()
 
     waterStatisticFile.close();
     totalLitres = 0;
-
-    Serial.println("OK");
-    Serial.print("Saving time = ");
-    Serial.print(millis() - start);
-    Serial.print("ms");
-    Serial.println("");
   }
 }
 
 void sendWaterInfoToWS()
 {
-  DynamicJsonDocument waterInfo(128);
-  waterInfo["command"] = "getWaterInfo";
+  if (millis() - sendWaterInfoPrevTime >= WS_WATER_INFO_INTERVAL)
+  {
+    sendWaterInfoPrevTime = millis();
 
-  JsonObject data = waterInfo.createNestedObject("data");
+    DynamicJsonDocument waterInfo(128);
+    waterInfo["command"] = "getWaterInfo";
 
-  data["flow"] = round(currentFlow * 10) / 10.0;
-  data["curDay"] = currentDayLitres;
-  data["curMonth"] = currentMonthLitres;
+    JsonObject data = waterInfo.createNestedObject("data");
 
-  sendDocumentToWs(waterInfo);
+    data["flow"] = round(currentFlow * 10) / 10.0;
+    data["curDay"] = currentDayLitres;
+    data["curMonth"] = currentMonthLitres;
+
+    sendDocumentToWs(waterInfo);
+  }
 }
 
 int searchDocumentInArray(const JsonArray &arr, char *field, int search)
@@ -407,58 +394,63 @@ void sendSlotsToWS()
 
 void sendSysInfoToWS()
 {
-  DynamicJsonDocument sysInfo(1024);
-  sysInfo["command"] = "getSysInfo";
-
-  JsonObject data = sysInfo.createNestedObject("data");
-  JsonObject wifi = data.createNestedObject("WiFi");
-  wifi["SSID"] = WiFi.SSID();
-  wifi["RSSI"] = WiFi.RSSI();
-  wifi["localIP"] = WiFi.localIP().toString();
-
-  JsonObject heap = data.createNestedObject("heap");
-  heap["total"] = ESP.getHeapSize();
-  heap["free"] = ESP.getFreeHeap();
-  heap["min"] = ESP.getMinFreeHeap();
-  heap["maxAlloc"] = ESP.getMaxAllocHeap();
-
-  JsonObject sdInfo = data.createNestedObject("SD");
-  uint8_t cardType = SD.cardType();
-  switch (cardType)
+  if (millis() - sendSysInfoPrevTime >= WS_SYS_INFO_INTERVAL)
   {
-  case CARD_NONE:
-    sdInfo["type"] = "None";
-    break;
-  case CARD_MMC:
-    sdInfo["type"] = "MMC";
-    break;
-  case CARD_SD:
-    sdInfo["type"] = "SD";
-    break;
-  case CARD_SDHC:
-    sdInfo["type"] = "SDHC";
-    break;
+    sendSysInfoPrevTime = millis();
+
+    DynamicJsonDocument sysInfo(1024);
+    sysInfo["command"] = "getSysInfo";
+
+    JsonObject data = sysInfo.createNestedObject("data");
+    JsonObject wifi = data.createNestedObject("WiFi");
+    wifi["SSID"] = WiFi.SSID();
+    wifi["RSSI"] = WiFi.RSSI();
+    wifi["localIP"] = WiFi.localIP().toString();
+
+    JsonObject heap = data.createNestedObject("heap");
+    heap["total"] = ESP.getHeapSize();
+    heap["free"] = ESP.getFreeHeap();
+    heap["min"] = ESP.getMinFreeHeap();
+    heap["maxAlloc"] = ESP.getMaxAllocHeap();
+
+    JsonObject sdInfo = data.createNestedObject("SD");
+    uint8_t cardType = SD.cardType();
+    switch (cardType)
+    {
+    case CARD_NONE:
+      sdInfo["type"] = "None";
+      break;
+    case CARD_MMC:
+      sdInfo["type"] = "MMC";
+      break;
+    case CARD_SD:
+      sdInfo["type"] = "SD";
+      break;
+    case CARD_SDHC:
+      sdInfo["type"] = "SDHC";
+      break;
+    }
+
+    char size[20];
+    sprintf(size, "%lluMB", SD.totalBytes() / (1024 * 1024));
+    sdInfo["total"] = size;
+    sprintf(size, "%lluMB", SD.usedBytes() / (1024 * 1024));
+    sdInfo["used"] = size;
+
+    JsonObject spiffsInfo = data.createNestedObject("SPIFFS");
+    sprintf(size, "%dKB", SPIFFS.totalBytes() / 1024);
+    spiffsInfo["total"] = size;
+    sprintf(size, "%dKB", SPIFFS.usedBytes() / 1024);
+    spiffsInfo["used"] = size;
+
+    JsonObject gsm = data.createNestedObject("gsm");
+    gsm["balance"] = currentBalance;
+    gsm["CREGCode"] = CREGCode;
+    gsm["signal"] = GSMSignal;
+    gsm["phone"] = GSMPhoneNumber;
+
+    sendDocumentToWs(sysInfo);
   }
-
-  char size[20];
-  sprintf(size, "%lluMB", SD.totalBytes() / (1024 * 1024));
-  sdInfo["total"] = size;
-  sprintf(size, "%lluMB", SD.usedBytes() / (1024 * 1024));
-  sdInfo["used"] = size;
-
-  JsonObject spiffsInfo = data.createNestedObject("SPIFFS");
-  sprintf(size, "%dKB", SPIFFS.totalBytes() / 1024);
-  spiffsInfo["total"] = size;
-  sprintf(size, "%dKB", SPIFFS.usedBytes() / 1024);
-  spiffsInfo["used"] = size;
-
-  JsonObject gsm = data.createNestedObject("gsm");
-  gsm["balance"] = currentBalance;
-  gsm["CREGCode"] = CREGCode;
-  gsm["signal"] = GSMSignal;
-  gsm["phone"] = GSMPhoneNumber;
-
-  sendDocumentToWs(sysInfo);
 }
 
 void getChannelsFromJson(const JsonArray &arr, bool *_channels)
@@ -885,14 +877,6 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
         }
         sendSlotsToWS();
       }
-      else if (command == "getSysInfo")
-      {
-        sendSysInfoToWS();
-      }
-      else if (command == "getWaterInfo")
-      {
-        sendWaterInfoToWS();
-      }
       else if (command == "skipEvent")
       {
         skipEvent(root["data"]["evId"]);
@@ -1129,11 +1113,12 @@ void checkCalendar()
 
       sendDocumentToWs(ongoing);
 
+      DynamicJsonDocument next(4000);
+      next["command"] = "nextEvents";
+      JsonArray nextData = next.createNestedArray("data");
+
       if (numNext)
       {
-        DynamicJsonDocument next(4000);
-        next["command"] = "nextEvents";
-        JsonArray nextData = next.createNestedArray("data");
         for (int i = 0; i < numNext; i++)
         {
           JsonObject nextOccurrence = nextData.createNestedObject();
@@ -1147,9 +1132,9 @@ void checkCalendar()
           nextOccurrence["elapsed"] = (nextList[i].start - Chronos::DateTime::now()).totalSeconds();
           nextOccurrence["evId"] = nextList[i].id;
         }
-
-        sendDocumentToWs(next);
       }
+
+      sendDocumentToWs(next);
     }
   }
 }
@@ -1232,39 +1217,6 @@ void listenRadio()
 
         updateWeatherData(temp, pressure, humidity, light, waterTemp, rain, groundHum);
         HC12LastUpdate = millis();
-      }
-    }
-  }
-}
-
-void getWeatherFromOpenWeatherMap(void *parameter)
-{
-  for (;;)
-  {
-    if (WiFi.status() == WL_CONNECTED)
-    {
-      HTTPClient http;
-      http.begin(OWM_ENDPOINT);
-      int httpCode = http.GET();
-
-      if (httpCode > 0)
-      {
-        String payload = http.getString();
-        Serial.println(httpCode);
-        Serial.println(payload);
-
-        DynamicJsonDocument OWMDocument(512);
-        deserializeJson(OWMDocument, payload);
-        if (!OWMDocument.isNull())
-        {
-          weatherData.OWMMainId = OWMDocument["weather"]["id"].as<int>();
-          weatherData.OWMRain3h = OWMDocument["rain"]["3h"].as<float>();
-        }
-        delay(30000);
-      }
-      else
-      {
-        delay(5000);
       }
     }
   }
