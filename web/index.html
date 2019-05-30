@@ -8,11 +8,15 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.8.1/css/all.min.css">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.6.3/compressed/themes/default.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.6.3/compressed/themes/default.time.css"
-    />
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.6.3/compressed/themes/default.css" />
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.6.3/compressed/themes/default.time.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.10.0/fullcalendar.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.min.css" />
+    <script>
+        window.myWidgetParam ? window.myWidgetParam : window.myWidgetParam = []; window.myWidgetParam.push({ id: 15, cityid: '706200', appid: '0d05fb0926034f4a849664441742cf69', units: 'metric', containerid: 'openweathermap-widget-15', }); (function () { var script = document.createElement('script'); script.async = true; script.charset = "utf-8"; script.src = "//openweathermap.org/themes/openweathermap/assets/vendor/owm/js/weather-widget-generator.js"; var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(script, s); })();
+    </script>
     <style type="text/css">
         body {
             background-color: #ddd
@@ -172,8 +176,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.6.3/compressed/picker.time.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-recur/1.0.7/moment-recur.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-duration-format/2.2.2/moment-duration-format.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mouse0270-bootstrap-notify/3.1.7/bootstrap-notify.min.js"></script>
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/moment-duration-format/2.2.2/moment-duration-format.min.js"></script>
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/mouse0270-bootstrap-notify/3.1.7/bootstrap-notify.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.10.0/fullcalendar.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.min.js"></script>
     <script type="text/javascript" src="app.js"></script>
@@ -244,8 +250,8 @@
     <nav class="navbar navbar-inverse navbar-static-top">
         <div class="container">
             <div class="navbar-header">
-                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false"
-                    aria-controls="navbar">
+                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar"
+                    aria-expanded="false" aria-controls="navbar">
                     <span class="sr-only">Toggle navigation</span>
                     <span class="icon-bar"></span>
                     <span class="icon-bar"></span>
@@ -321,7 +327,7 @@
                             <h2>Dashboard</h2>
                         </div>
                         <div class="col-md-12" id="channel-statuses">
-                            
+
                         </div>
                         <div class="col-md-12">
                             <div class="col-md-3 col-sm-6">
@@ -476,13 +482,15 @@
                             <div class="form-group text-center">
                                 <label>Duration</label>
                                 <div class="input-group">
-                                    <input type="number" min="1" max="1440" id="duration" class="form-control" aria-describedby="manual-duration-addon" value="5">
+                                    <input type="number" min="1" max="1440" id="duration" class="form-control"
+                                        aria-describedby="manual-duration-addon" value="5">
                                     <span class="input-group-addon" id="manual-duration-addon">Min</span>
                                 </div>
                             </div>
                         </div>
                         <div class="col-md-4 col-md-offset-4 text-center">
-                            <button onclick="stopManualIrrigation()" class="btn btn-danger stop-irrigation-btn" style="display: none">
+                            <button onclick="stopManualIrrigation()" class="btn btn-danger stop-irrigation-btn"
+                                style="display: none">
                                 <i class="fa fa-stop"></i>
                                 Stop irrigation
                             </button>
@@ -589,7 +597,8 @@
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label>Days</label>
-                                            <input type="number" class="time-days form-control" value="2" min="1" max="365" />
+                                            <input type="number" class="time-days form-control" value="2" min="1"
+                                                max="365" />
                                         </div>
                                     </div>
                                     <div class="col-md-6">
@@ -643,7 +652,8 @@
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label>Day of month</label>
-                                            <input type="number" class="time-day-of-month form-control" value="1" min="1" max="31" />
+                                            <input type="number" class="time-day-of-month form-control" value="1"
+                                                min="1" max="31" />
                                         </div>
                                     </div>
                                     <div class="col-md-6">
@@ -659,7 +669,8 @@
                                 <div class="form-group">
                                     <label>Duration</label>
                                     <div class="input-group">
-                                        <input type="number" class="duration form-control" aria-describedby="duration-addon" value="5">
+                                        <input type="number" class="duration form-control"
+                                            aria-describedby="duration-addon" value="5">
                                         <span class="input-group-addon" id="duration-addon">Min</span>
                                     </div>
                                 </div>
@@ -682,11 +693,13 @@
                                         <i class="fa fa-calendar-plus"></i>
                                         Add schedule
                                     </button>
-                                    <button class="btn btn-warning cancel-edit-schedule" style="display: none" onclick="cancelEditSchedule()">
+                                    <button class="btn btn-warning cancel-edit-schedule" style="display: none"
+                                        onclick="cancelEditSchedule()">
                                         <i class="fa fa-calendar-times"></i>
                                         Cancel edit
                                     </button>
-                                    <button class="btn btn-success save-schedule" style="display: none" onclick="addOrEditSchedule()">
+                                    <button class="btn btn-success save-schedule" style="display: none"
+                                        onclick="addOrEditSchedule()">
                                         <i class="fa fa-calendar-check"></i>
                                         Save schedule
                                     </button>
@@ -699,7 +712,8 @@
                             </div>
                             <div class="col-md-12 col-no-padding text-center">
                                 <p style="font-size: 13px;" id="events-statistic"></p>
-                                <table class="table table-bordered table-responsive" style="font-size: 11px" id="events-list">
+                                <table class="table table-bordered table-responsive" style="font-size: 11px"
+                                    id="events-list">
                                     <thead>
                                         <tr>
                                             <th>ID</th>
@@ -735,8 +749,9 @@
                     </div>
                     <div class="tab-pane" id="weather-config">
                         <div class="page-header text-center">
-                            <h2>Weather configuration</h2>
+                            <h2>Weather</h2>
                         </div>
+                        <div id="openweathermap-widget-15"></div>
                     </div>
                     <div class="tab-pane" id="wifi-config">
                         <div class="page-header text-center">
