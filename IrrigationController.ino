@@ -1222,6 +1222,13 @@ void listenRadio()
   }
 }
 
+void changeHC12Channel(byte channelId)
+{
+  char *channelCommand;
+  sprintf(channelCommand, "AT+C%03d", channelId);
+  HC12.println(channelCommand);
+}
+
 void WiFiEvent(WiFiEvent_t event)
 {
   //Serial.printf("[WiFi-event] event: %d\n", event);
