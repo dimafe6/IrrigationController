@@ -44,6 +44,8 @@ struct WeatherData
   volatile int groundHum = NULL;
 } volatile weatherData;
 
+TaskHandle_t processRadioChannelsHandle;
+
 volatile unsigned long HC12LastUpdate = 0;
 unsigned long calendarLastCheck = 0;
 unsigned long RTCLastSync = 0;
@@ -67,11 +69,13 @@ volatile float totalLitres = 0.0;
 volatile float currentDayLitres = 0.0;
 volatile float currentMonthLitres = 0.0;
 volatile float currentFlow = 0.0;
+volatile bool currentChannelsState[CHANNELS_COUNT] = {false};
+volatile byte currentChannel = 1;
 
 void setup()
 {
   disableCore0WDT();
-  
+
   initPins();
   initSerial();
   initSD();
@@ -85,7 +89,7 @@ void setup()
       "secondCoreLoop",
       15000,
       NULL,
-      0,
+      1,
       NULL,
       0);
 }
@@ -123,11 +127,13 @@ void initPins()
   pinMode(LOAD_RELAY_2, OUTPUT);
   pinMode(LOAD_MOSFET_1, OUTPUT);
   pinMode(LOAD_MOSFET_2, OUTPUT);
+  pinMode(HC_12_SET, OUTPUT);
+  pinMode(FLOW_SENSOR_PIN, INPUT);
   digitalWrite(LOAD_RELAY_1, LOW);
   digitalWrite(LOAD_RELAY_2, LOW);
   digitalWrite(LOAD_MOSFET_1, LOW);
   digitalWrite(LOAD_MOSFET_2, LOW);
-  pinMode(FLOW_SENSOR_PIN, INPUT);
+  digitalWrite(HC_12_SET, HIGH);
 }
 
 void initFlowSensor()
@@ -996,6 +1002,7 @@ void initWiFi()
 void initSD()
 {
   Serial.println("");
+  pinMode(SD_MOSI, INPUT_PULLUP);
   spiSD.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
   if (!SD.begin(SD_CS, spiSD))
   {
@@ -1051,6 +1058,7 @@ void initSerial()
   HC12.begin(BAUD_RATE_RADIO, SERIAL_8N1, HC_12_RX, HC_12_TX);
   SIM800.begin(BAUD_RATE);
   sendATCommand("AT");
+  HC12.println("AT+C001");
 
   bool _channels[CHANNELS_COUNT] = {false};
   processRemoteChannels(_channels);
@@ -1058,7 +1066,10 @@ void initSerial()
 
 void checkCalendar()
 {
-  bool _channels[CHANNELS_COUNT] = {false};
+  for (byte n = 0; n < CHANNELS_COUNT; n++)
+  {
+    currentChannelsState[n] = false;
+  }
 
   if (dateIsValid() && (millis() - calendarLastCheck >= CALENDAR_CHECK_INTERVAL))
   {
@@ -1093,17 +1104,25 @@ void checkCalendar()
 
         for (byte n = 0; n < CHANNELS_COUNT; n++)
         {
-          _channels[n] = occurrenceList[i].channels[n];
+          currentChannelsState[n] = occurrenceList[i].channels[n];
         }
       }
     }
 
-    digitalWrite(LOAD_RELAY_1, _channels[0] ? HIGH : LOW);
-    digitalWrite(LOAD_RELAY_2, _channels[1] ? HIGH : LOW);
-    digitalWrite(LOAD_MOSFET_1, _channels[2] ? HIGH : LOW);
-    digitalWrite(LOAD_MOSFET_2, _channels[3] ? HIGH : LOW);
+    digitalWrite(LOAD_RELAY_1, currentChannelsState[0] ? HIGH : LOW);
+    digitalWrite(LOAD_RELAY_2, currentChannelsState[1] ? HIGH : LOW);
+    digitalWrite(LOAD_MOSFET_1, currentChannelsState[2] ? HIGH : LOW);
+    digitalWrite(LOAD_MOSFET_2, currentChannelsState[3] ? HIGH : LOW);
 
-    processRemoteChannels(_channels);
+    vTaskDelete(processRadioChannelsHandle);
+    xTaskCreatePinnedToCore(
+        processRemoteChannels,
+        "processRemoteChannels",
+        15000,
+        NULL,
+        2,
+        &processRadioChannelsHandle,
+        0);
 
     if (ws.count() > 0)
     {
@@ -1156,15 +1175,92 @@ void checkCalendar()
   }
 }
 
-void processRemoteChannels(bool *_channels)
+void processRemoteChannels(void *parameter)
 {
-  // Process remote channels
-  for (byte n = 4; n < CHANNELS_COUNT; n++)
+  Serial.println("Starting process channels...");
+  // Process remote channels. 4 channels reserved for channels in PCB
+  for (byte channel = 4; channel < CHANNELS_COUNT; channel++)
   {
-    DynamicJsonDocument remoteChannel(128);
-    remoteChannel["ch"] = n;
-    remoteChannel["st"] = _channels[n] ? 1 : 0;
-    serializeJson(remoteChannel, HC12);
+    byte radioChannel = channel - 2; //TODO: Get radio channel from calendar event
+    char *data;
+    // ArduinoJson is not used for speedup
+    sprintf(data, "{\"st\":%d}", currentChannelsState[channel] ? 1 : 0);
+    sendDataToRadioChannel(radioChannel, data);
+    Serial.printf("Channel %d hass been processed\n", channel);
+  }
+
+  // Rollback to weather station channel
+  changeRadioChannel(1);
+
+  Serial.println("Process channels has been finished");
+
+  vTaskDelete(NULL);
+}
+
+void changeRadioChannel(byte channelId)
+{
+  if (channelId != currentChannel)
+  {
+    // Enter to AT commands mode
+    digitalWrite(HC_12_SET, LOW);
+    delay(5);
+    char *channelCommand;
+    sprintf(channelCommand, "AT+C%03d", channelId);
+
+    HC12.println(channelCommand);
+
+    // Wait response
+    while (currentChannel != channelId)
+    {
+    }
+
+    digitalWrite(HC_12_SET, HIGH);
+    delay(5);
+  }
+}
+
+void sendDataToRadioChannel(byte channelId, char *data)
+{
+  changeRadioChannel(channelId);
+  HC12.println(data);
+}
+
+void listenRadio()
+{
+  if (HC12.available())
+  {
+    String response;
+    response = HC12.readStringUntil('\n');
+    Serial.printf("HC12: %s", response);
+    // If we received a JSON and we are on channel 1(weather station)
+    if (response.indexOf("{") > -1 && currentChannel == 1)
+    {
+      DynamicJsonDocument root(1024);
+      deserializeJson(root, response);
+
+      // If JSON has been parsed
+      if (!root.isNull())
+      {
+        int temp = root["t"];
+        int pressure = root["p"];
+        int humidity = root["h"];
+        int light = root["l"];
+        int waterTemp = root["wt"];
+        int rain = root["r"];
+        int groundHum = root["gh"];
+
+        updateWeatherData(temp, pressure, humidity, light, waterTemp, rain, groundHum);
+      }
+    }
+    else
+    {
+      // Channel has been changed
+      if (response.indexOf("COK+C") > -1)
+      {
+        currentChannel = response.substring(response.indexOf("COK+C") + 3).toInt();
+        Serial.printf("HC12 current channel: %d", currentChannel);
+      }
+    }
   }
 }
 
@@ -1199,50 +1295,22 @@ void updateWeatherData(volatile int temp, volatile int pressure, volatile int hu
     weatherData.groundHum = groundHum;
   }
 
-  DynamicJsonDocument answer(1024);
-  answer["command"] = "weatherUpdate";
-  JsonObject data = answer.createNestedObject("data");
-  data["temp"] = weatherData.temp;
-  data["pressure"] = weatherData.pressure;
-  data["humidity"] = weatherData.humidity;
-  data["light"] = weatherData.light;
-  data["waterTemp"] = weatherData.waterTemp;
-  data["rain"] = weatherData.rain;
-  data["groundHum"] = weatherData.groundHum;
-  sendDocumentToWs(answer);
-}
-
-void listenRadio()
-{
-  if (HC12.available())
+  if (millis() - HC12LastUpdate >= HC_12_UPDATE_INTERVAL)
   {
-    if (millis() - HC12LastUpdate >= HC_12_UPDATE_INTERVAL)
-    {
-      DynamicJsonDocument root(1024);
-      deserializeJson(root, HC12);
+    HC12LastUpdate = millis();
 
-      if (!root.isNull())
-      {
-        int temp = root["t"];
-        int pressure = root["p"];
-        int humidity = root["h"];
-        int light = root["l"];
-        int waterTemp = root["wt"];
-        int rain = root["r"];
-        int groundHum = root["gh"];
-
-        updateWeatherData(temp, pressure, humidity, light, waterTemp, rain, groundHum);
-        HC12LastUpdate = millis();
-      }
-    }
+    DynamicJsonDocument answer(1024);
+    answer["command"] = "weatherUpdate";
+    JsonObject data = answer.createNestedObject("data");
+    data["temp"] = weatherData.temp;
+    data["pressure"] = weatherData.pressure;
+    data["humidity"] = weatherData.humidity;
+    data["light"] = weatherData.light;
+    data["waterTemp"] = weatherData.waterTemp;
+    data["rain"] = weatherData.rain;
+    data["groundHum"] = weatherData.groundHum;
+    sendDocumentToWs(answer);
   }
-}
-
-void changeHC12Channel(byte channelId)
-{
-  char *channelCommand;
-  sprintf(channelCommand, "AT+C%03d", channelId);
-  HC12.println(channelCommand);
 }
 
 void WiFiEvent(WiFiEvent_t event)
