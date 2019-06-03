@@ -6,32 +6,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="X-UA-Compatible" content="ie=edge" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon.png">
-
     <title>Irrigation controller - WiFi setting</title>
-    <script type="text/javascript">
-        if ("WebSocket" in window) {
-            ws = new WebSocket("ws://" + location.hostname + "/ws");
-        }
-        function saveWifiConfig() {
-            var command = {};
-            command.command = "WiFiConfig";
-            command.data = {};
-            command.data.ssid = document.getElementById("ssid").value;
-            command.data.pass = document.getElementById("pass").value;
-
-            ws.send(JSON.stringify(command));
-        }
-    </script>
+    <script type="text/javascript">if ("WebSocket" in window) { ws = new WebSocket("ws://" + location.hostname + "/ws"); } function saveWifiConfig() { var command = {}; command.command = "WiFiConfig"; command.data = {}; command.data.ssid = document.getElementById("ssid").value; command.data.pass = document.getElementById("pass").value; ws.send(JSON.stringify(command)); }</script>
 </head>
 
 <body>
     <div>
         <label>SSID</label>
-        <input type="text" id="ssid">
+        <input type="text" id="ssid" />
     </div>
     <div>
         <label>Password</label>
-        <input type="password" id="pass">
+        <input type="password" id="pass" />
     </div>
     <div>
         <button onclick="saveWifiConfig()">Save</button>

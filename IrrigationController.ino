@@ -35,41 +35,43 @@ enum Periodicity
 
 struct WeatherData
 {
-  int temp = NULL;
-  int pressure = NULL;
-  int humidity = NULL;
-  int light = NULL;
-  int waterTemp = NULL;
-  int rain = NULL;
-  int groundHum = NULL;
-} weatherData;
+  volatile int temp = NULL;
+  volatile int pressure = NULL;
+  volatile int humidity = NULL;
+  volatile int light = NULL;
+  volatile int waterTemp = NULL;
+  volatile int rain = NULL;
+  volatile int groundHum = NULL;
+} volatile weatherData;
 
-unsigned long HC12LastUpdate = 0;
+volatile unsigned long HC12LastUpdate = 0;
 unsigned long calendarLastCheck = 0;
 unsigned long RTCLastSync = 0;
-unsigned long balanceLastCheck = CHECK_BALANCE_INTERVAL;
-unsigned long GSMStatusLastCheck = CHECK_STATUS_INTERVAL;
+volatile unsigned long balanceLastCheck = CHECK_BALANCE_INTERVAL;
+volatile unsigned long GSMStatusLastCheck = CHECK_STATUS_INTERVAL;
 unsigned long flowPrevTime = 0;
-unsigned long saveStatisticPrevTime = 0;
+volatile unsigned long saveStatisticPrevTime = 0;
 unsigned long sendSysInfoPrevTime = WS_SYS_INFO_INTERVAL;
 unsigned long sendWaterInfoPrevTime = WS_WATER_INFO_INTERVAL;
 
-int currentBalance = NULL;
-byte CREGCode = 0;
-int GSMSignal = 0;
+volatile int currentBalance = NULL;
+volatile byte CREGCode = 0;
+volatile int GSMSignal = 0;
 String GSMPhoneNumber;
 bool shouldReboot = false;
 bool manualIrrigationRunning = false;
 volatile int flowPulses = 0;
 
 float flowCalibrationFactor = FLOW_SENSOR_CALIBRATION;
-float totalLitres = 0.0;
-float currentDayLitres = 0.0;
-float currentMonthLitres = 0.0;
-float currentFlow = 0.0;
+volatile float totalLitres = 0.0;
+volatile float currentDayLitres = 0.0;
+volatile float currentMonthLitres = 0.0;
+volatile float currentFlow = 0.0;
 
 void setup()
 {
+  disableCore0WDT();
+  
   initPins();
   initSerial();
   initSD();
@@ -78,6 +80,14 @@ void setup()
   initSPIFFS();
   initWiFi();
   initWebServer();
+  xTaskCreatePinnedToCore(
+      secondCoreLoop,
+      "secondCoreLoop",
+      15000,
+      NULL,
+      0,
+      NULL,
+      0);
 }
 
 void loop()
@@ -89,15 +99,22 @@ void loop()
     ESP.restart();
   }
   syncRTC();
-  listenSIM800();
   checkCalendar();
-  listenRadio();
-  checkBalance();
-  checkGSMStatus();
   flowCalculate();
-  saveStatistic();
   sendSysInfoToWS();
   sendWaterInfoToWS();
+}
+
+void secondCoreLoop(void *parameter)
+{
+  while (true)
+  {
+    listenSIM800();
+    listenRadio();
+    checkBalance();
+    checkGSMStatus();
+    saveStatistic();
+  }
 }
 
 void initPins()
@@ -141,12 +158,12 @@ void saveStatistic()
 {
   if ((millis() - saveStatisticPrevTime) > SAVE_STATISTIC_INTERVAL)
   {
+    saveStatisticPrevTime = millis();
+
     Chronos::DateTime nowTime(Chronos::DateTime::now());
 
     char fileName[30];
     sprintf(fileName, WATER_STATISTIC_FILE, nowTime.year(), nowTime.month());
-
-    saveStatisticPrevTime = millis();
 
     File waterStatisticFile;
     DynamicJsonDocument waterStatistic(STATISTIC_FILE_SIZE);
@@ -244,7 +261,7 @@ void initWebServer()
   ws.onEvent(onWsEvent);
   server.addHandler(&ws);
   server.serveStatic("/app.js", SPIFFS, "/app.js").setCacheControl("max-age=0");
-  server.serveStatic("/", SPIFFS, "/").setDefaultFile("index.html");
+  server.serveStatic("/", SPIFFS, "/").setDefaultFile("index.htm");
   server.rewrite("/wifi", "/wifi.html");
 
   server.on("/edit/sd", [](AsyncWebServerRequest *request) {
@@ -1151,7 +1168,7 @@ void processRemoteChannels(bool *_channels)
   }
 }
 
-void updateWeatherData(int temp, int pressure, int humidity, int light, int waterTemp, int rain, int groundHum)
+void updateWeatherData(volatile int temp, volatile int pressure, volatile int humidity, volatile int light, volatile int waterTemp, volatile int rain, volatile int groundHum)
 {
   if (NULL != temp && temp < 100)
   {
@@ -1192,7 +1209,6 @@ void updateWeatherData(int temp, int pressure, int humidity, int light, int wate
   data["waterTemp"] = weatherData.waterTemp;
   data["rain"] = weatherData.rain;
   data["groundHum"] = weatherData.groundHum;
-
   sendDocumentToWs(answer);
 }
 
@@ -1417,7 +1433,6 @@ void listenSIM800()
       String cnum;
       cnum.reserve(36);
       cnum = response.substring(response.indexOf("+CNUM:") + 11);
-      GSMPhoneNumber.reserve(12);
       GSMPhoneNumber = cnum.substring(0, 12);
     }
   }

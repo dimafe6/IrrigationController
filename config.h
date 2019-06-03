@@ -1,5 +1,5 @@
 /* Serial configuration */
-#define BAUD_RATE 2400
+#define BAUD_RATE 9600
 #define BAUD_RATE_RADIO 9600
 #define HC_12_RX 26
 #define HC_12_TX 27

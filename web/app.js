@@ -2,7 +2,7 @@ var websocketServerLocation = "ws://" + location.hostname + "/ws";
 var ws;
 var weekNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thuesday", "Friday", "Saturday"];
 var periodicityList = { "-1": "Once", "0": "Hourly", "1": "Every X hours", "2": "Daily", "3": "Every X days", "4": "Weekly", "5": "Monthly" };
-var calendarEvents = [];
+var calendarEvents = {};
 var availableSlots;
 var calendar;
 var memChart;
@@ -13,6 +13,7 @@ window.addEventListener('beforeunload', (event) => {
 });
 
 $(document).ready(function () {
+    window.myWidgetParam ? window.myWidgetParam : window.myWidgetParam = []; window.myWidgetParam.push({ id: 15, cityid: '706200', appid: '0d05fb0926034f4a849664441742cf69', units: 'metric', containerid: 'openweathermap-widget-15', }); (function () { var script = document.createElement('script'); script.async = true; script.charset = "utf-8"; script.src = "//openweathermap.org/themes/openweathermap/assets/vendor/owm/js/weather-widget-generator.js"; var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(script, s); })();
     var channelsTemplate = $("#dash-channel-status-block div:first").clone();
     var channelBlock = $("#channel-statuses");
     $.each(zoneNames, function (key, name) {
@@ -228,7 +229,7 @@ $(document).ready(function () {
 
     $(document).on('click', '.event-actions .action-remove', function () {
         var evId = parseInt($(this).closest('tr').find('td:first').text());
-        removeEvent(evId);        
+        removeEvent(evId);
     });
 
     $(document).on('click', '.event-actions .action-edit', function () {
@@ -374,7 +375,7 @@ $(document).ready(function () {
         }
     });
 
-    $(document).on('click', 'a[href="#schedule-mode"]', function() {getSchedule();});
+    $(document).on('click', 'a[href="#schedule-mode"]', function () { getSchedule(); });
 });
 
 function getMomentFromEpoch(epoch) {
@@ -584,7 +585,9 @@ function WebSocketBegin(location) {
                                     $zonePanel.find('.finish-date').html(finishDate.format('YYYY-MM-DD HH:mm:ss'));
                                     $zonePanel.find('.duration').html(moment.duration((finishDate - startDate), "milliseconds").format("D[d] H[h] m[m] s[s]"));
                                     $zonePanel.find('.elapsed-time').html(elapsed);
-                                    $zonePanel.find('.running-info .event-name').html(occurence.evId === 25 ? "Manual" : calendarEvents.slots[occurence.evId].title);
+                                    if (Object.entries(calendarEvents).length > 0) {
+                                        $zonePanel.find('.running-info .event-name').html(occurence.evId === 25 ? "Manual" : calendarEvents.slots[occurence.evId].title);
+                                    }
                                     $zonePanel.addClass('active');
                                     $zonePanelBody.find('.running-info').attr("data-evid", occurence.evId);
                                 }
@@ -606,7 +609,9 @@ function WebSocketBegin(location) {
                                     $zonePanel.find('.next-finish-date').html(finishDate.format('YYYY-MM-DD HH:mm:ss'));
                                     $zonePanel.find('.next-duration').html(moment.duration((finishDate - startDate), "milliseconds").format("D[d] H[h] m[m] s[s]"));
                                     $zonePanel.find('.next-elapsed').html(elapsed);
-                                    $zonePanel.find('.next-start .event-name').html(occurence.evId === 25 ? "Manual" : calendarEvents.slots[occurence.evId].title);
+                                    if (Object.entries(calendarEvents).length) {
+                                        $zonePanel.find('.next-start .event-name').html(occurence.evId === 25 ? "Manual" : calendarEvents.slots[occurence.evId].title);
+                                    }
                                 }
                             });
                         });
@@ -793,7 +798,7 @@ function getExplanationForSchedule(scheduleObject) {
 
     switch (scheduleObject.periodicity) {
         case 0:
-            var currDate = moment();            
+            var currDate = moment();
             currDate.minute(scheduleObject.minute).second(scheduleObject.second);
             on = `${currDate.format('mm:ss')}`;
             explanationString = `Irrigation for zone(s) ${zonesString} every hour on ${currDate.format('mm[m]:ss[s]')} with a duration of ${durationStr}\n`;
@@ -805,7 +810,7 @@ function getExplanationForSchedule(scheduleObject) {
             }
             break;
         case 1:
-            var currDate = moment();            
+            var currDate = moment();
             currDate.minute(scheduleObject.minute).second(scheduleObject.second);
             on = `${currDate.format('mm:ss')}`;
             explanationString = `Irrigation for zone(s) ${zonesString} every ${scheduleObject.hours} hours on ${currDate.format('mm[m]:ss[s]')} with a duration of ${durationStr}\n`;
@@ -817,7 +822,7 @@ function getExplanationForSchedule(scheduleObject) {
             }
             break;
         case 2:
-            var currDate = moment();            
+            var currDate = moment();
             currDate.hour(scheduleObject.hour).minute(scheduleObject.minute).second(0);
             on = `${currDate.format('HH:mm')}`;
             explanationString = `Irrigation for zone(s) ${zonesString} every day on ${currDate.format('HH[h]:mm[m][00s]')} with a duration of ${durationStr}\n`;
