@@ -3,7 +3,6 @@
 #define BAUD_RATE_RADIO 9600
 #define HC_12_RX 26
 #define HC_12_TX 27
-#define HC_12_SET 25
 #define HC_12_UPDATE_INTERVAL 2000
 #define PRINTLN(...)  Serial.println(__VA_ARGS__)
 
@@ -36,6 +35,7 @@
 #define MANUAL_IRRIGATION_EVENT_ID CALENDAR_MAX_NUM_EVENTS
 #define MANUAL_IRRIGATION_FILE_NAME "/manual.json"
 #define SCHEDULE_FILE_NAME "/schedule.json"
+#define CHANNELS_FILE_NAME "/channels.json"
 
 /* Web server configuration */
 #define HTTP_PORT 80

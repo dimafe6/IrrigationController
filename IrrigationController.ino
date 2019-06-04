@@ -44,8 +44,6 @@ struct WeatherData
   volatile int groundHum = NULL;
 } volatile weatherData;
 
-TaskHandle_t processRadioChannelsHandle;
-
 volatile unsigned long HC12LastUpdate = 0;
 unsigned long calendarLastCheck = 0;
 unsigned long RTCLastSync = 0;
@@ -69,8 +67,6 @@ volatile float totalLitres = 0.0;
 volatile float currentDayLitres = 0.0;
 volatile float currentMonthLitres = 0.0;
 volatile float currentFlow = 0.0;
-volatile bool currentChannelsState[CHANNELS_COUNT] = {false};
-volatile byte currentChannel = 1;
 
 void setup()
 {
@@ -79,6 +75,7 @@ void setup()
   initPins();
   initSerial();
   initSD();
+  createChannelNamesIfNotExists();
   loadCalendarFromSD();
   loadManualIrrigationFromSD();
   initSPIFFS();
@@ -89,7 +86,7 @@ void setup()
       "secondCoreLoop",
       15000,
       NULL,
-      1,
+      4,
       NULL,
       0);
 }
@@ -127,13 +124,11 @@ void initPins()
   pinMode(LOAD_RELAY_2, OUTPUT);
   pinMode(LOAD_MOSFET_1, OUTPUT);
   pinMode(LOAD_MOSFET_2, OUTPUT);
-  pinMode(HC_12_SET, OUTPUT);
   pinMode(FLOW_SENSOR_PIN, INPUT);
   digitalWrite(LOAD_RELAY_1, LOW);
   digitalWrite(LOAD_RELAY_2, LOW);
   digitalWrite(LOAD_MOSFET_1, LOW);
   digitalWrite(LOAD_MOSFET_2, LOW);
-  digitalWrite(HC_12_SET, HIGH);
 }
 
 void initFlowSensor()
@@ -157,6 +152,85 @@ void flowCalculate()
     totalLitres += currentLitres;
     flowPulses = 0;
     initFlowSensor();
+  }
+}
+
+void createChannelNamesIfNotExists()
+{
+  if (!SD.exists(CHANNELS_FILE_NAME))
+  {
+    File channelsFile;
+    channelsFile = SD.open(CHANNELS_FILE_NAME, FILE_WRITE);
+    DynamicJsonDocument channelsDoc(4096);
+    deserializeJson(channelsDoc, "[]");
+    JsonArray arraySchedule = channelsDoc.as<JsonArray>();
+
+    for (int i = 0; i < CHANNELS_COUNT; i++)
+    {
+      char name[10];
+      switch (i)
+      {
+      case 0:
+        sprintf(name, "Relay 1");
+        break;
+      case 1:
+        sprintf(name, "Relay 2");
+        break;
+      case 2:
+        sprintf(name, "Mosfet 1");
+        break;
+      case 3:
+        sprintf(name, "Mosfet 2");
+        break;
+      default:
+        sprintf(name, "RF %d", i - 3);
+        break;
+      }
+
+      JsonObject channel = arraySchedule.createNestedObject();
+      channel["id"] = i;
+      channel["name"] = name;
+    }
+
+    serializeJson(channelsDoc, channelsFile);
+    channelsFile.close();
+  }
+}
+
+void sendChannelNamesToWS()
+{
+  if (ws.count() > 0)
+  {
+    if (!SD.exists(CHANNELS_FILE_NAME))
+    {
+      createChannelNamesIfNotExists();
+    }
+
+    File channelsFile;
+    channelsFile = SD.open(CHANNELS_FILE_NAME, FILE_READ);
+    DynamicJsonDocument channelsDoc(4096);
+    DynamicJsonDocument response(5192);
+    deserializeJson(channelsDoc, channelsFile);
+    response["command"] = "getChannelNames";
+    response["data"] = channelsDoc.as<JsonArray>();
+
+    sendDocumentToWs(response);
+  }
+}
+
+void saveChannelNames(const JsonArray &data)
+{
+  if (SD.exists(CHANNELS_FILE_NAME))
+  {
+    File channelsFile;
+    channelsFile = SD.open(CHANNELS_FILE_NAME, FILE_WRITE);
+    DynamicJsonDocument channelsDoc(4096);
+    JsonArray docArray = channelsDoc.to<JsonArray>();
+    docArray.set(data);
+
+    serializeJson(channelsDoc, channelsFile);
+    channelsFile.close();
+    sendChannelNamesToWS();
   }
 }
 
@@ -222,7 +296,7 @@ void saveStatistic()
 
 void sendWaterInfoToWS()
 {
-  if (millis() - sendWaterInfoPrevTime >= WS_WATER_INFO_INTERVAL)
+  if (millis() - sendWaterInfoPrevTime >= WS_WATER_INFO_INTERVAL && ws.count() > 0)
   {
     sendWaterInfoPrevTime = millis();
 
@@ -385,39 +459,42 @@ void loadCalendarFromSD()
 
 void sendSlotsToWS()
 {
-  DynamicJsonDocument schedule(SCHEDULE_FILE_SIZE);
-
-  if (!openScheduleFromSD(schedule))
+  if (ws.count() > 0)
   {
-    return;
+    DynamicJsonDocument schedule(SCHEDULE_FILE_SIZE);
+
+    if (!openScheduleFromSD(schedule))
+    {
+      return;
+    }
+
+    DynamicJsonDocument response(SCHEDULE_FILE_SIZE + 128);
+    response["command"] = "getSlots";
+    JsonObject data = response.createNestedObject("data");
+    JsonArray slots = data.createNestedArray("slots");
+
+    JsonArray arraySchedule = schedule.as<JsonArray>();
+    for (JsonObject eventData : arraySchedule)
+    {
+      slots.add(eventData);
+    }
+
+    if (slots.size() != MyCalendar.numRecurring())
+    {
+      loadCalendarFromSD();
+      sendSlotsToWS();
+    }
+
+    data["total"] = CALENDAR_MAX_NUM_EVENTS - 1;
+    data["occupied"] = MyCalendar.numRecurring();
+
+    sendDocumentToWs(response);
   }
-
-  DynamicJsonDocument response(SCHEDULE_FILE_SIZE + 128);
-  response["command"] = "getSlots";
-  JsonObject data = response.createNestedObject("data");
-  JsonArray slots = data.createNestedArray("slots");
-
-  JsonArray arraySchedule = schedule.as<JsonArray>();
-  for (JsonObject eventData : arraySchedule)
-  {
-    slots.add(eventData);
-  }
-
-  if (slots.size() != MyCalendar.numRecurring())
-  {
-    loadCalendarFromSD();
-    sendSlotsToWS();
-  }
-
-  data["total"] = CALENDAR_MAX_NUM_EVENTS - 1;
-  data["occupied"] = MyCalendar.numRecurring();
-
-  sendDocumentToWs(response);
 }
 
 void sendSysInfoToWS()
 {
-  if (millis() - sendSysInfoPrevTime >= WS_SYS_INFO_INTERVAL)
+  if (millis() - sendSysInfoPrevTime >= WS_SYS_INFO_INTERVAL && ws.count() > 0)
   {
     sendSysInfoPrevTime = millis();
 
@@ -858,7 +935,7 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       }
     }
 
-    DynamicJsonDocument root(512);
+    DynamicJsonDocument root(5192);
     deserializeJson(root, msg);
     if (!root.isNull())
     {
@@ -903,6 +980,14 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       else if (command == "skipEvent")
       {
         skipEvent(root["data"]["evId"]);
+      }
+      else if (command == "getChannelNames")
+      {
+        sendChannelNamesToWS();
+      }
+      else if (command == "saveChannelNames")
+      {
+        saveChannelNames(root["data"]);
       }
     }
   }
@@ -1058,18 +1143,11 @@ void initSerial()
   HC12.begin(BAUD_RATE_RADIO, SERIAL_8N1, HC_12_RX, HC_12_TX);
   SIM800.begin(BAUD_RATE);
   sendATCommand("AT");
-  HC12.println("AT+C001");
-
-  bool _channels[CHANNELS_COUNT] = {false};
-  processRemoteChannels(_channels);
 }
 
 void checkCalendar()
 {
-  for (byte n = 0; n < CHANNELS_COUNT; n++)
-  {
-    currentChannelsState[n] = false;
-  }
+  bool currentChannelsState[CHANNELS_COUNT] = {false};
 
   if (dateIsValid() && (millis() - calendarLastCheck >= CALENDAR_CHECK_INTERVAL))
   {
@@ -1104,7 +1182,7 @@ void checkCalendar()
 
         for (byte n = 0; n < CHANNELS_COUNT; n++)
         {
-          currentChannelsState[n] = occurrenceList[i].channels[n];
+          currentChannelsState[n] = currentChannelsState[n] ?: occurrenceList[i].channels[n];
         }
       }
     }
@@ -1113,16 +1191,6 @@ void checkCalendar()
     digitalWrite(LOAD_RELAY_2, currentChannelsState[1] ? HIGH : LOW);
     digitalWrite(LOAD_MOSFET_1, currentChannelsState[2] ? HIGH : LOW);
     digitalWrite(LOAD_MOSFET_2, currentChannelsState[3] ? HIGH : LOW);
-
-    vTaskDelete(processRadioChannelsHandle);
-    xTaskCreatePinnedToCore(
-        processRemoteChannels,
-        "processRemoteChannels",
-        15000,
-        NULL,
-        2,
-        &processRadioChannelsHandle,
-        0);
 
     if (ws.count() > 0)
     {
@@ -1172,56 +1240,21 @@ void checkCalendar()
 
       sendDocumentToWs(next);
     }
+
+    processRemoteChannels(currentChannelsState);
   }
 }
 
-void processRemoteChannels(void *parameter)
+void processRemoteChannels(bool *currentChannelsState)
 {
-  Serial.println("Starting process channels...");
+  String data = "ch";
   // Process remote channels. 4 channels reserved for channels in PCB
   for (byte channel = 4; channel < CHANNELS_COUNT; channel++)
   {
-    byte radioChannel = channel - 2; //TODO: Get radio channel from calendar event
-    char *data;
-    // ArduinoJson is not used for speedup
-    sprintf(data, "{\"st\":%d}", currentChannelsState[channel] ? 1 : 0);
-    sendDataToRadioChannel(radioChannel, data);
-    Serial.printf("Channel %d hass been processed\n", channel);
+    data += currentChannelsState[channel] ? '1' : '0';
   }
+  data += ';';
 
-  // Rollback to weather station channel
-  changeRadioChannel(1);
-
-  Serial.println("Process channels has been finished");
-
-  vTaskDelete(NULL);
-}
-
-void changeRadioChannel(byte channelId)
-{
-  if (channelId != currentChannel)
-  {
-    // Enter to AT commands mode
-    digitalWrite(HC_12_SET, LOW);
-    delay(5);
-    char *channelCommand;
-    sprintf(channelCommand, "AT+C%03d", channelId);
-
-    HC12.println(channelCommand);
-
-    // Wait response
-    while (currentChannel != channelId)
-    {
-    }
-
-    digitalWrite(HC_12_SET, HIGH);
-    delay(5);
-  }
-}
-
-void sendDataToRadioChannel(byte channelId, char *data)
-{
-  changeRadioChannel(channelId);
   HC12.println(data);
 }
 
@@ -1229,16 +1262,11 @@ void listenRadio()
 {
   if (HC12.available())
   {
-    String response;
-    response = HC12.readStringUntil('\n');
-    Serial.printf("HC12: %s", response);
-    // If we received a JSON and we are on channel 1(weather station)
-    if (response.indexOf("{") > -1 && currentChannel == 1)
+    if (millis() - HC12LastUpdate >= HC_12_UPDATE_INTERVAL)
     {
       DynamicJsonDocument root(1024);
-      deserializeJson(root, response);
+      deserializeJson(root, HC12);
 
-      // If JSON has been parsed
       if (!root.isNull())
       {
         int temp = root["t"];
@@ -1250,15 +1278,7 @@ void listenRadio()
         int groundHum = root["gh"];
 
         updateWeatherData(temp, pressure, humidity, light, waterTemp, rain, groundHum);
-      }
-    }
-    else
-    {
-      // Channel has been changed
-      if (response.indexOf("COK+C") > -1)
-      {
-        currentChannel = response.substring(response.indexOf("COK+C") + 3).toInt();
-        Serial.printf("HC12 current channel: %d", currentChannel);
+        HC12LastUpdate = millis();
       }
     }
   }
@@ -1295,10 +1315,8 @@ void updateWeatherData(volatile int temp, volatile int pressure, volatile int hu
     weatherData.groundHum = groundHum;
   }
 
-  if (millis() - HC12LastUpdate >= HC_12_UPDATE_INTERVAL)
+  if (ws.count() > 0)
   {
-    HC12LastUpdate = millis();
-
     DynamicJsonDocument answer(1024);
     answer["command"] = "weatherUpdate";
     JsonObject data = answer.createNestedObject("data");

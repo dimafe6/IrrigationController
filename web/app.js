@@ -6,7 +6,6 @@ var calendarEvents = {};
 var availableSlots;
 var calendar;
 var memChart;
-const zoneNames = ["Relay 1", "Relay 2", "Mosfet 1", "Mosfet 2"];
 
 window.addEventListener('beforeunload', (event) => {
     ws.close();
@@ -14,15 +13,6 @@ window.addEventListener('beforeunload', (event) => {
 
 $(document).ready(function () {
     window.myWidgetParam ? window.myWidgetParam : window.myWidgetParam = []; window.myWidgetParam.push({ id: 15, cityid: '706200', appid: '0d05fb0926034f4a849664441742cf69', units: 'metric', containerid: 'openweathermap-widget-15', }); (function () { var script = document.createElement('script'); script.async = true; script.charset = "utf-8"; script.src = "//openweathermap.org/themes/openweathermap/assets/vendor/owm/js/weather-widget-generator.js"; var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(script, s); })();
-    var channelsTemplate = $("#dash-channel-status-block div:first").clone();
-    var channelBlock = $("#channel-statuses");
-    $.each(zoneNames, function (key, name) {
-        var channelStatus = channelsTemplate.clone();
-        channelStatus.find('.channel-id').attr('data-zone', key);
-        channelStatus.find('.channel-name').html(name);
-        channelStatus.show();
-        channelBlock.append(channelStatus);
-    });
 
     moment.updateLocale('en', {
         week: {
@@ -44,6 +34,11 @@ $(document).ready(function () {
     calendar = $('#calendar').fullCalendar({
         slotDuration: "00:15:00",
         defaultView: 'agendaWeek',
+        header: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'agendaWeek,listWeek,agendaDay'
+        },
         displayEventTime: true,
         displayEventEnd: true,
         allDaySlot: false,
@@ -222,7 +217,7 @@ $(document).ready(function () {
 
     $('#periodicity').change();
 
-    $('#schedule-mode-zones input[type="checkbox"]').change(getSchedule);
+    $('#schedule-mode-zones').change(getSchedule);
     $('.time-days').change(getSchedule);
     $('#weekdays-selector input').change(getSchedule);
     $('#schedule-mode .duration').change(getSchedule);
@@ -251,10 +246,10 @@ $(document).ready(function () {
         $('#schedule-mode .save-schedule').show();
         $('#schedule-mode .cancel-edit-schedule').show();
         $('#schedule-mode .event-title').val(slot.title);
-        $('#schedule-mode-zones label').removeClass('active');
+        $('#schedule-mode-zones option:selected').removeAttr('selected');
 
         $.each(slot.channels, function (index, value) {
-            $('#schedule-mode-zones input[value="' + value + '"]').parent().addClass('active');
+            $('#schedule-mode-zones').val(value);
         });
 
         $('#periodicity').val(slot.periodicity).trigger('change');
@@ -376,6 +371,25 @@ $(document).ready(function () {
     });
 
     $(document).on('click', 'a[href="#schedule-mode"]', function () { getSchedule(); });
+
+    $(document).on('click', '.save-channel-names-btn', function () {
+        $(this).prop('disabled', true);
+        var channelNames = [];
+        $('#channel-names tbody tr').each(function () {
+            var id = parseInt($(this).find('td:eq(0)').html());
+            var name = $(this).find('td:eq(1) input').val();
+            if (name.trim().length <= 0) {
+                alert(`Wrong name "${name}" for channel ${id}`);
+                $(this).find('tr:eq(1) input').focus();
+            } else {
+                channelNames.push({ 'id': id, 'name': name });
+            }
+        });
+        var command = {};
+        command.command = "saveChannelNames";
+        command.data = channelNames;
+        ws.send(JSON.stringify(command));
+    });
 });
 
 function getMomentFromEpoch(epoch) {
@@ -389,8 +403,8 @@ function cancelEditSchedule() {
     $('#schedule-mode .add-schedule').show();
     $('#schedule-mode .save-schedule').hide();
     $('#schedule-mode .cancel-edit-schedule').hide();
-    $('#schedule-mode-zones label').removeClass('active');
-    $('#schedule-mode-zones input[value="1"]').parent().addClass('active');
+    $('#schedule-mode-zones option:selected').removeAttr('selected');
+    $('#schedule-mode-zones option:first').attr('selected', true);
     $('#periodicity').val(0).trigger('change');
     $('#schedule-mode .duration').val(5).trigger('change');
     var $periodBlock = $('.period-block.hourly');
@@ -474,8 +488,9 @@ function WebSocketBegin(location) {
         ws = new WebSocket(location);
         ws.onopen = function () {
             $('#ws-n-conn').hide();
-            getSlots();
             getSysInfo();
+            getChannelNames();
+            getSlots();
         };
 
         ws.onmessage = function (evt) {
@@ -630,6 +645,40 @@ function WebSocketBegin(location) {
                         $('.w-rain').html(`${data.rain}`);
                         $('.w-ground-hum').html(`${data.groundHum}`);
                         break;
+                    case 'getChannelNames':
+                        var isEdited = $('.save-channel-names-btn').is(":disabled");
+
+                        if (isEdited) {
+                            notify('Channel names has been saved.', 'success');
+                            $('.save-channel-names-btn').prop('disabled', false);
+                            $('#channel-statuses').empty();
+                            $('#manual-mode-zones, #schedule-mode-zones').empty();
+                            $('#channel-names tbody').empty();
+                        }
+
+                        if ($('#channel-statuses .channel-id').length <= 0) {
+                            var channelsTemplate = $("#dash-channel-status-block div:first").clone();
+                            var channelBlock = $("#channel-statuses");
+                            $.each(data, function () {
+                                var channelStatus = channelsTemplate.clone();
+                                channelStatus.find('.channel-id').attr('data-zone', this.id);
+                                channelStatus.find('.channel-name').html(this.name);
+                                channelStatus.show();
+                                channelBlock.append(channelStatus);
+                                $('#manual-mode-zones, #schedule-mode-zones').append(`<option value="${this.id}">${this.name}</option>`);
+                                var channelNamesBody = $('#channel-names tbody');
+                                channelNamesBody.append(
+                                    `<tr>
+                                        <td style="vertical-align: middle;">${this.id}</td>
+                                        <td style="padding: 0;">
+                                            <input style="border: none; padding: 0px 5px;" class="form-control input-sm" maxlength="25" value="${this.name}"></input>
+                                        </td>
+                                    </tr>`
+                                );
+                            });
+                        }
+                        break;
+
                 }
             }
         };
@@ -654,19 +703,17 @@ function compareOccurences(a, b) {
 }
 
 function manualIrrigation() {
-    if ($('#manual-mode-zones .btn-default.active').length === 0) {
+    if ($('#manual-mode-zones option:selected').length === 0) {
         alert("Select minimum one zone!");
-        $('#manual-mode-zones input[type="checkbox"]:eq(0)').click();
+        $('#manual-mode-zones option:first').attr('selected', true);
         return;
     }
     var command = {};
     command.command = "manualIrrigation";
     command.data = {};
     var checked = []
-    $('#manual-mode-zones input[type="checkbox"]').each(function () {
-        if ($(this).parent().hasClass('active')) {
-            checked.push(parseInt($(this).val()));
-        }
+    $('#manual-mode-zones option:selected').each(function () {
+        checked.push(parseInt($(this).val()));
     });
     command.data.duration = parseInt($('#duration').val());
     command.data.channels = checked;
@@ -680,10 +727,8 @@ function getSchedule() {
     var checked = [];
     var evId = parseInt($('#evId').val());
 
-    $('#schedule-mode-zones input[type="checkbox"]').each(function () {
-        if ($(this).parent().hasClass('active')) {
-            checked.push(parseInt($(this).val()));
-        }
+    $('#schedule-mode-zones option:selected').each(function () {
+        checked.push(parseInt($(this).val()));
     });
 
     eventSlot.duration = parseInt($scheduleBlock.find('.duration').val());
@@ -889,9 +934,9 @@ function addOrEditSchedule() {
         return;
     }
 
-    if ($('#schedule-mode-zones .btn-default.active').length === 0) {
+    if ($('#schedule-mode-zones option:selected').length === 0) {
         alert("Select minimum one zone!");
-        $('#schedule-mode-zones input[type="checkbox"]:eq(0)').click();
+        $('#schedule-mode-zones option:selected').attr('selected', true);
         return;
     }
 
@@ -972,4 +1017,10 @@ function skipEvent(evId) {
 
         ws.send(JSON.stringify(command));
     }
+}
+
+function getChannelNames() {
+    var command = {};
+    command.command = "getChannelNames";
+    ws.send(JSON.stringify(command));
 }
