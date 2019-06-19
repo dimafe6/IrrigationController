@@ -1,6 +1,8 @@
 #include "secrets.h"
 #include "config.h"
 #include <ArduinoJson.h>
+#include <Wire.h>
+#include <RtcDS3231.h>
 #include <WiFi.h>
 #include <FS.h>
 #include <SPIFFS.h>
@@ -15,7 +17,7 @@ SPIClass spiSD(HSPI);
 AsyncWebServer server(HTTP_PORT);
 AsyncWebSocket ws("/ws");
 HardwareSerial HC12(1);
-HardwareSerial SIM800(2);
+RtcDS3231<TwoWire> RTC(Wire);
 WiFiClient client;
 DefineCalendarType(Calendar, CALENDAR_MAX_NUM_EVENTS);
 Calendar MyCalendar;
@@ -46,18 +48,11 @@ struct WeatherData
 
 volatile unsigned long HC12LastUpdate = 0;
 unsigned long calendarLastCheck = 0;
-unsigned long RTCLastSync = 0;
-volatile unsigned long balanceLastCheck = CHECK_BALANCE_INTERVAL;
-volatile unsigned long GSMStatusLastCheck = CHECK_STATUS_INTERVAL;
 unsigned long flowPrevTime = 0;
 volatile unsigned long saveStatisticPrevTime = 0;
 unsigned long sendSysInfoPrevTime = WS_SYS_INFO_INTERVAL;
 unsigned long sendWaterInfoPrevTime = WS_WATER_INFO_INTERVAL;
 
-volatile int currentBalance = NULL;
-volatile byte CREGCode = 0;
-volatile int GSMSignal = 0;
-String GSMPhoneNumber;
 bool shouldReboot = false;
 bool manualIrrigationRunning = false;
 volatile int flowPulses = 0;
@@ -99,7 +94,6 @@ void loop()
     delay(100);
     ESP.restart();
   }
-  syncRTC();
   checkCalendar();
   flowCalculate();
   sendSysInfoToWS();
@@ -110,10 +104,7 @@ void secondCoreLoop(void *parameter)
 {
   while (true)
   {
-    listenSIM800();
     listenRadio();
-    checkBalance();
-    checkGSMStatus();
     saveStatistic();
   }
 }
@@ -129,6 +120,46 @@ void initPins()
   digitalWrite(LOAD_RELAY_2, LOW);
   digitalWrite(LOAD_MOSFET_1, LOW);
   digitalWrite(LOAD_MOSFET_2, LOW);
+}
+
+void initRtc()
+{
+  RTC.Begin();
+  RTC.Enable32kHzPin(false);
+  RTC.SetSquareWavePin(DS3231SquareWavePin_ModeAlarmBoth);
+  RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
+
+  if (!RTC.IsDateTimeValid())
+  {
+    Serial.println("RTC lost confidence in the DateTime!");
+    RTC.SetDateTime(compiled);
+  }
+
+  if (!RTC.GetIsRunning())
+  {
+    Serial.println("RTC was not actively running, starting now");
+    RTC.SetIsRunning(true);
+  }
+
+  RtcDateTime now = RTC.GetDateTime();
+  if (now < compiled)
+  {
+    Serial.println("RTC is older than compile time!  (Updating DateTime)");
+    RTC.SetDateTime(compiled);
+  }
+
+  setSyncProvider(getTime);
+  Chronos::DateTime::now().printTo(Serial);
+
+  Serial.println("");
+  Serial.print("Free heap: ");
+  Serial.print(ESP.getFreeHeap());
+  Serial.println("");
+}
+
+static time_t getTime()	
+{	
+  return RTC.GetDateTime().Epoch32Time();	
 }
 
 void initFlowSensor()
@@ -542,12 +573,6 @@ void sendSysInfoToWS()
     spiffsInfo["total"] = size;
     sprintf(size, "%dKB", SPIFFS.usedBytes() / 1024);
     spiffsInfo["used"] = size;
-
-    JsonObject gsm = data.createNestedObject("gsm");
-    gsm["balance"] = currentBalance;
-    gsm["CREGCode"] = CREGCode;
-    gsm["signal"] = GSMSignal;
-    gsm["phone"] = GSMPhoneNumber;
 
     sendDocumentToWs(sysInfo);
   }
@@ -1141,8 +1166,6 @@ void initSerial()
 {
   Serial.begin(BAUD_RATE);
   HC12.begin(BAUD_RATE_RADIO, SERIAL_8N1, HC_12_RX, HC_12_TX);
-  SIM800.begin(BAUD_RATE);
-  sendATCommand("AT");
 }
 
 void checkCalendar()
@@ -1422,110 +1445,6 @@ void WiFiEvent(WiFiEvent_t event)
 
 bool dateIsValid()
 {
-  return year() >= 2019;
-}
-
-void syncRTC()
-{
-  //If current year < 2019 then update RTC every 2 sec else update RTC every RTC_SYNC_INTERVAL
-  if (millis() - RTCLastSync >= (!dateIsValid() ? 2000 : RTC_SYNC_INTERVAL))
-  {
-    sendATCommand("AT+CCLK?");
-    RTCLastSync = millis();
-  }
-}
-
-void checkBalance()
-{
-  if (millis() - balanceLastCheck >= CHECK_BALANCE_INTERVAL)
-  {
-    sendATCommand("AT+CUSD=1,\"*111#\"");
-    balanceLastCheck = millis();
-  }
-}
-
-void checkGSMStatus()
-{
-  if (millis() - GSMStatusLastCheck >= CHECK_STATUS_INTERVAL)
-  {
-    sendATCommand("AT+CREG?");
-    sendATCommand("AT+CSQ");
-    sendATCommand("AT+CNUM");
-
-    GSMStatusLastCheck = millis();
-  }
-}
-
-void listenSIM800()
-{
-  if (Serial.available())
-  {
-    SIM800.write(Serial.read());
-  }
-
-  if (SIM800.available())
-  {
-    String response;
-    response = SIM800.readStringUntil('\n');
-    Serial.println(response);
-
-    // USSD Handler
-    if (response.indexOf("+CUSD:") > -1)
-    {
-      // Check balance
-      if (response.indexOf("Balans") > -1)
-      {
-        String msgBalance;
-        msgBalance.reserve(128);
-        msgBalance = response.substring(response.indexOf("Balans") + 7);
-        msgBalance = msgBalance.substring(0, msgBalance.indexOf("hrn") - 1);
-        currentBalance = msgBalance.toFloat();
-        Serial.println("USSD: " + String(currentBalance));
-      }
-    }
-
-    // GSM RTC Handler
-    if (response.indexOf("+CCLK:") > -1)
-    {
-      String cclk;
-      cclk.reserve(32);
-      cclk = response.substring(response.indexOf("+CCLK:") + 8);
-      uint8_t year = cclk.substring(0, 2).toInt();
-      uint8_t month = cclk.substring(3, 5).toInt();
-      uint8_t day = cclk.substring(6, 8).toInt();
-      uint8_t hour = cclk.substring(9, 11).toInt();
-      uint8_t minute = cclk.substring(12, 14).toInt();
-      uint8_t second = cclk.substring(15, 17).toInt();
-      setTime(hour, minute, second, day, month, year);
-      Serial.println("RTC synchronized. New time is: ");
-      Chronos::DateTime::now().printTo(Serial);
-    }
-
-    if (response.indexOf("+CREG:") > -1)
-    {
-      CREGCode = response.substring(response.indexOf("+CREG:") + 9).toInt();
-    }
-
-    if (response.indexOf("+CSQ:") > -1)
-    {
-      String csq;
-      csq.reserve(12);
-      csq = response.substring(response.indexOf("+CSQ:") + 6);
-      GSMSignal = csq.substring(0, 2).toInt() * 2;
-    }
-
-    if (response.indexOf("+CNUM:") > -1)
-    {
-      String cnum;
-      cnum.reserve(36);
-      cnum = response.substring(response.indexOf("+CNUM:") + 11);
-      GSMPhoneNumber = cnum.substring(0, 12);
-    }
-  }
-}
-
-void sendATCommand(String cmd)
-{
-  Serial.println(cmd);
-  SIM800.println(cmd);
+  RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
+  return year() >= compiled.Year();
 }
