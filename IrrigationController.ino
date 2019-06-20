@@ -13,6 +13,8 @@
 #include <Update.h>
 #include "src/Chronos/src/Chronos.h"
 
+#define countof(a) (sizeof(a) / sizeof(a[0]))
+
 SPIClass spiSD(HSPI);
 AsyncWebServer server(HTTP_PORT);
 AsyncWebSocket ws("/ws");
@@ -63,6 +65,35 @@ volatile float currentDayLitres = 0.0;
 volatile float currentMonthLitres = 0.0;
 volatile float currentFlow = 0.0;
 
+void LOG(const char *format, ...)
+{
+  va_list args;
+  va_start(args, format);
+  char rawMsg[255];
+  vsprintf(rawMsg, format, args);  
+  char message[512];
+  char datestring[20];
+  RtcDateTime now = RTC.GetDateTime();
+  snprintf_P(datestring,
+             countof(datestring),
+             PSTR("%04u-%02u-%02u %02u:%02u:%02u"),
+             now.Year(),
+             now.Month(),
+             now.Day(),
+             now.Hour(),
+             now.Minute(),
+             now.Second());
+  sprintf(message, "[%s]: %s", datestring, rawMsg);
+  Serial.println(message);
+  if (ws.count() > 0)
+  {
+    char wsMessage[1024];
+    sprintf(wsMessage, "{\"command\":\"debug\", \"msg\":\"%s\"}", message);
+    ws.textAll(wsMessage);
+  }
+  va_end(args);
+}
+
 void setup()
 {
   disableCore0WDT();
@@ -91,7 +122,7 @@ void loop()
 {
   if (shouldReboot)
   {
-    Serial.println("Rebooting...");
+    LOG("Rebooting...");
     delay(100);
     ESP.restart();
   }
@@ -132,20 +163,20 @@ void initRtc()
 
   if (!RTC.IsDateTimeValid())
   {
-    Serial.println("RTC lost confidence in the DateTime!");
+    LOG("RTC lost confidence in the DateTime!");
     RTC.SetDateTime(compiled);
   }
 
   if (!RTC.GetIsRunning())
   {
-    Serial.println("RTC was not actively running, starting now");
+    LOG("RTC was not actively running, starting now");
     RTC.SetIsRunning(true);
   }
 
   RtcDateTime now = RTC.GetDateTime();
   if (now < compiled)
   {
-    Serial.println("RTC is older than compile time!  (Updating DateTime)");
+    LOG("RTC is older than compile time!  (Updating DateTime)");
     RTC.SetDateTime(compiled);
   }
 
@@ -290,7 +321,7 @@ void saveStatistic()
     waterStatisticFile = SD.open(fileName, FILE_WRITE);
     if (!waterStatisticFile)
     {
-      Serial.println(F("Failed to create water statistic file"));
+      LOG("Failed to create water statistic file");
       return;
     }
 
@@ -393,7 +424,7 @@ void initWebServer()
     response->addHeader("Connection", "close");
     request->send(response); }, [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
     if(!index){
-      Serial.printf("Update Start: %s\n", filename.c_str());
+      LOG("Update Start: %s\n", filename.c_str());
       if(!Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000)){
         Update.printError(Serial);
       }
@@ -405,7 +436,7 @@ void initWebServer()
     }
     if(final){
       if(Update.end(true)){
-        Serial.printf("Update Success");
+        LOG("Update Success");
         request->redirect("/");
       } else {
         Update.printError(Serial);
@@ -597,7 +628,7 @@ bool removeEvent(int evId)
     File scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_WRITE);
     if (!scheduleFile)
     {
-      Serial.println(F("Failed to create schedule"));
+      LOG("Failed to create schedule");
       return false;
     }
 
@@ -637,7 +668,7 @@ bool setEventEnabled(byte evId, bool enabled)
   File scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_WRITE);
   if (!scheduleFile)
   {
-    Serial.println(F("Failed to create schedule"));
+    LOG("Failed to create schedule");
 
     return false;
   }
@@ -673,7 +704,7 @@ bool skipEvent(byte evId)
   File scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_WRITE);
   if (!scheduleFile)
   {
-    Serial.println(F("Failed to create schedule"));
+    LOG("Failed to create schedule");
 
     return false;
   }
@@ -757,17 +788,14 @@ void addOrEditSchedule(const JsonObject &eventData)
   {
     evId = eventId.as<int>();
 
-    Serial.println("");
-    Serial.print("Edit schedule #");
-    Serial.println(evId);
+    LOG("Edit schedule #%d", evId);
     eventData.remove("skipUntil");
     eventData["enabled"] = MyCalendar.isEnabled(evId);
     MyCalendar.removeAll(evId);
   }
   else
   {
-    Serial.println("");
-    Serial.print("Add schedule");
+    LOG("Add schedule");
     eventData["enabled"] = true; //New event always enabled
   }
 
@@ -785,7 +813,7 @@ void addOrEditSchedule(const JsonObject &eventData)
     File scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_WRITE);
     if (!scheduleFile)
     {
-      Serial.println(F("Failed to create schedule"));
+      LOG("Failed to create schedule");
       return;
     }
 
@@ -831,16 +859,13 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
     eventData.remove("evId");
   }
 
-  bool isEnabled = enabled.as<bool>();
-
-  Serial.println("Event id:");
-  Serial.println(evId);
+  bool isEnabled = enabled.as<bool>();  
 
   switch (periodicity)
   {
   case Periodicity::HOURLY:
   {
-    Serial.println("HOURLY");
+    LOG("Event id: %d, %s", evId, "HOURLY");
     byte minute = eventData["minute"];
     byte second = eventData["second"];
 
@@ -849,7 +874,7 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
   break;
   case Periodicity::EVERY_X_HOUR:
   {
-    Serial.println("EVERY_X_HOUR");
+    LOG("Event id: %d, %s", evId, "EVERY_X_HOUR");
     byte hours = eventData["hours"];
     byte minute = eventData["minute"];
     byte second = eventData["second"];
@@ -859,7 +884,7 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
   break;
   case Periodicity::DAILY:
   {
-    Serial.println("DAILY");
+    LOG("Event id: %d, %s", evId, "DAILY");
     byte hour = eventData["hour"];
     byte minute = eventData["minute"];
 
@@ -868,7 +893,7 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
   break;
   case Periodicity::EVERY_X_DAYS:
   {
-    Serial.println("EVERY_X_DAYS");
+    LOG("Event id: %d, %s", evId, "EVERY_X_DAYS");
     byte days = eventData["days"];
     byte hour = eventData["hour"];
     byte minute = eventData["minute"];
@@ -878,7 +903,7 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
   break;
   case Periodicity::WEEKLY:
   {
-    Serial.println("WEEKLY");
+    LOG("Event id: %d, %s", evId, "WEEKLY");
     byte dayOfWeek = eventData["dayOfWeek"];
     byte hour = eventData["hour"];
     byte minute = eventData["minute"];
@@ -888,7 +913,7 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
   break;
   case Periodicity::MONTHLY:
   {
-    Serial.println("MONTHLY");
+    LOG("Event id: %d, %s", evId, "MONTHLY");
     byte dayOfMonth = eventData["dayOfMonth"];
     byte hour = eventData["hour"];
     byte minute = eventData["minute"];
@@ -912,7 +937,7 @@ void addManualEventToCalendar(const JsonObject &eventData)
   File manualFile = SD.open(MANUAL_IRRIGATION_FILE_NAME, FILE_WRITE);
   if (!manualFile)
   {
-    Serial.println(F("Failed to start irrigation"));
+    LOG("Failed to start irrigation");
     return;
   }
 
@@ -994,7 +1019,7 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       {
         if (!setEventEnabled(root["data"]["evId"], root["data"]["enabled"]))
         {
-          Serial.println("Error set event enabled");
+          LOG("Error set event enabled");
         }
         sendSlotsToWS();
       }
@@ -1013,7 +1038,7 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       else if (command == "setTime")
       {
         JsonObject data = root["data"];
-        RtcDateTime newTime = RtcDateTime(data["year"],data["month"],data["day"],data["hour"],data["minute"],data["second"]);
+        RtcDateTime newTime = RtcDateTime(data["year"], data["month"], data["day"], data["hour"], data["minute"], data["second"]);
         RTC.SetDateTime(newTime);
         setSyncProvider(getTime);
         calendarLastCheck = 0;
@@ -1029,33 +1054,33 @@ void performUpdate(Stream &updateSource, size_t updateSize)
     size_t written = Update.writeStream(updateSource);
     if (written == updateSize)
     {
-      Serial.println("Written : " + String(written) + " successfully");
+      LOG("Written: %d successfully", written);
     }
     else
     {
-      Serial.println("Written only : " + String(written) + "/" + String(updateSize) + ". Retry?");
+      LOG("Written only: %d/%d. Retry?", written, updateSize);
     }
     if (Update.end())
     {
-      Serial.println("OTA done!");
+      LOG("OTA done!");
       if (Update.isFinished())
       {
-        Serial.println("Update successfully completed. Rebooting.");
+        LOG("Update successfully completed. Rebooting.");
         shouldReboot = true;
       }
       else
       {
-        Serial.println("Update not finished? Something went wrong!");
+        LOG("Update not finished? Something went wrong!");
       }
     }
     else
     {
-      Serial.println("Error Occurred. Error #: " + String(Update.getError()));
+      LOG("Error Occurred. Error #%d", Update.getError());
     }
   }
   else
   {
-    Serial.println("Not enough space to begin OTA");
+    LOG("Not enough space to begin OTA");
   }
 }
 
@@ -1066,7 +1091,7 @@ void updateFromFS(fs::FS &fs)
   {
     if (updateBin.isDirectory())
     {
-      Serial.println("Error, update.bin is not a file");
+      LOG("Error, update.bin is not a file");
       updateBin.close();
       return;
     }
@@ -1075,12 +1100,12 @@ void updateFromFS(fs::FS &fs)
 
     if (updateSize > 0)
     {
-      Serial.println("Try to start update");
+      LOG("Try to start update");
       performUpdate(updateBin, updateSize);
     }
     else
     {
-      Serial.println("Error, file is empty");
+      LOG("Error, file is empty");
     }
 
     updateBin.close();
@@ -1088,7 +1113,7 @@ void updateFromFS(fs::FS &fs)
   }
   else
   {
-    Serial.println("No updates");
+    LOG("No updates");
   }
 
   if (shouldReboot)
@@ -1115,12 +1140,11 @@ void initWiFi()
 
 void initSD()
 {
-  Serial.println("");
   pinMode(SD_MOSI, INPUT_PULLUP);
   spiSD.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
   if (!SD.begin(SD_CS, spiSD))
   {
-    Serial.println("Card Mount Failed");
+    LOG("Card Mount Failed");
     return;
   }
 
@@ -1128,32 +1152,31 @@ void initSD()
 
   if (cardType == CARD_NONE)
   {
-    Serial.println("No SD card attached");
+    LOG("No SD card attached");
     return;
   }
 
-  Serial.print("SD Card Type: ");
   if (cardType == CARD_MMC)
   {
-    Serial.println("MMC");
+    LOG("SD Card Type: MMC");
   }
   else if (cardType == CARD_SD)
   {
-    Serial.println("SDSC");
+    LOG("SD Card Type: SDSC");
   }
   else if (cardType == CARD_SDHC)
   {
-    Serial.println("SDHC");
+    LOG("SD Card Type: SDHC");
   }
   else
   {
-    Serial.println("UNKNOWN");
+    LOG("SD Card Type: UNKNOWN");
   }
 
   uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-  Serial.printf("SD Card Size: %lluMB\n", cardSize);
-  Serial.printf("Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
-  Serial.printf("Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
+  LOG("SD Card Size: %lluMB\n", cardSize);
+  LOG("Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
+  LOG("Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
 
   updateFromFS(SD);
 }
@@ -1161,9 +1184,8 @@ void initSD()
 void initSPIFFS()
 {
   SPIFFS.begin(true);
-  Serial.println("");
-  Serial.printf("Total space: %dKB\n", SPIFFS.totalBytes() / (1024));
-  Serial.printf("Used space: %dKB\n", SPIFFS.usedBytes() / (1024));
+  LOG("Total space: %dKB\n", SPIFFS.totalBytes() / (1024));
+  LOG("Used space: %dKB\n", SPIFFS.usedBytes() / (1024));
 }
 
 void initSerial()
@@ -1190,10 +1212,7 @@ void checkCalendar()
     {
       for (int i = 0; i < numOngoing; i++)
       {
-        Serial.println("");
-        Serial.print("**** Event: ");
-        Serial.print((int)occurrenceList[i].id);
-        Serial.print(": ");
+        LOG("**** Event %d", (int)occurrenceList[i].id);
         (Chronos::DateTime::now() - occurrenceList[i].finish).printTo(Serial);
         Serial.println("");
 
@@ -1360,89 +1379,84 @@ void updateWeatherData(volatile int temp, volatile int pressure, volatile int hu
 
 void WiFiEvent(WiFiEvent_t event)
 {
-  //Serial.printf("[WiFi-event] event: %d\n", event);
-
   switch (event)
   {
   case SYSTEM_EVENT_WIFI_READY:
-    //Serial.println("WiFi interface ready");
+    //LOG("WiFi interface ready");
     break;
   case SYSTEM_EVENT_SCAN_DONE:
-    Serial.println("Completed scan for access points");
+    LOG("Completed scan for access points");
     break;
   case SYSTEM_EVENT_STA_START:
-    //Serial.println("WiFi client started");
+    //LOG("WiFi client started");
     break;
   case SYSTEM_EVENT_STA_STOP:
-    Serial.println("WiFi clients stopped");
+    LOG("WiFi clients stopped");
     break;
   case SYSTEM_EVENT_STA_CONNECTED:
-    Serial.println("Connected to access point");
+    LOG("Connected to access point");
     break;
   case SYSTEM_EVENT_STA_DISCONNECTED:
-    Serial.println("Disconnected from WiFi access point");
+    LOG("Disconnected from WiFi access point");
     WiFi.reconnect();
     break;
   case SYSTEM_EVENT_STA_AUTHMODE_CHANGE:
-    Serial.println("Authentication mode of access point has changed");
+    LOG("Authentication mode of access point has changed");
     break;
   case SYSTEM_EVENT_STA_GOT_IP:
-    Serial.print("Obtained IP address: ");
-    Serial.println(WiFi.SSID());
-    Serial.println(WiFi.localIP());
-    Chronos::DateTime::now().printTo(Serial);
+    LOG("Obtained IP address: %s", WiFi.localIP());
     break;
   case SYSTEM_EVENT_STA_LOST_IP:
-    Serial.println("Lost IP address and IP address is reset to 0");
+    LOG("Lost IP address and IP address is reset to 0");
     WiFi.reconnect();
     break;
   case SYSTEM_EVENT_STA_WPS_ER_SUCCESS:
-    Serial.println("WiFi Protected Setup (WPS): succeeded in enrollee mode");
+    LOG("WiFi Protected Setup (WPS): succeeded in enrollee mode");
     break;
   case SYSTEM_EVENT_STA_WPS_ER_FAILED:
-    Serial.println("WiFi Protected Setup (WPS): failed in enrollee mode");
+    LOG("WiFi Protected Setup (WPS): failed in enrollee mode");
     break;
   case SYSTEM_EVENT_STA_WPS_ER_TIMEOUT:
-    Serial.println("WiFi Protected Setup (WPS): timeout in enrollee mode");
+    LOG("WiFi Protected Setup (WPS): timeout in enrollee mode");
     break;
   case SYSTEM_EVENT_STA_WPS_ER_PIN:
-    Serial.println("WiFi Protected Setup (WPS): pin code in enrollee mode");
+    LOG("WiFi Protected Setup (WPS): pin code in enrollee mode");
     break;
   case SYSTEM_EVENT_AP_START:
-    Serial.println("WiFi access point started");
+    LOG("WiFi access point started");
     break;
   case SYSTEM_EVENT_AP_STOP:
-    Serial.println("WiFi access point  stopped");
+    LOG("WiFi access point  stopped");
     break;
   case SYSTEM_EVENT_AP_STACONNECTED:
-    Serial.println("Client connected");
+    LOG("Client connected");
     break;
   case SYSTEM_EVENT_AP_STADISCONNECTED:
-    Serial.println("Client disconnected");
+    LOG("Client disconnected");
     break;
   case SYSTEM_EVENT_AP_STAIPASSIGNED:
-    Serial.println("Assigned IP address to client");
+    LOG("Assigned IP address to client");
     break;
   case SYSTEM_EVENT_AP_PROBEREQRECVED:
-    Serial.println("Received probe request");
+    LOG("Received probe request");
     break;
   case SYSTEM_EVENT_GOT_IP6:
-    Serial.println("IPv6 is preferred");
+    LOG("IPv6 is preferred");
     break;
   case SYSTEM_EVENT_ETH_START:
-    Serial.println("Ethernet started");
+    LOG("Ethernet started");
     break;
   case SYSTEM_EVENT_ETH_STOP:
-    Serial.println("Ethernet stopped");
+    LOG("Ethernet stopped");
     break;
   case SYSTEM_EVENT_ETH_CONNECTED:
-    Serial.println("Ethernet connected");
+    LOG("Ethernet connected");
     break;
   case SYSTEM_EVENT_ETH_DISCONNECTED:
-    Serial.println("Ethernet disconnected");
+    LOG("Ethernet disconnected");
     break;
   case SYSTEM_EVENT_ETH_GOT_IP:
-    Serial.println("Obtained IP address");
+    LOG("Obtained IP address");
     break;
   }
 }

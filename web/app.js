@@ -500,6 +500,7 @@ function WebSocketBegin(location) {
             var command = jsonObject.command || null;
             if (null !== command) {
                 var data = jsonObject.data || null;
+                var msg = jsonObject.msg || null;
                 switch (command) {
                     case 'manualIrrigation':
                         $('#manual-mode .stop-irrigation-btn').show();
@@ -678,7 +679,9 @@ function WebSocketBegin(location) {
                             });
                         }
                         break;
-
+                    case 'debug':
+                        console.log(msg);
+                    break;
                 }
             }
         };
