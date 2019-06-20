@@ -69,6 +69,7 @@ void setup()
 
   initPins();
   initSerial();
+  initRtc();
   initSD();
   createChannelNamesIfNotExists();
   loadCalendarFromSD();
@@ -150,16 +151,11 @@ void initRtc()
 
   setSyncProvider(getTime);
   Chronos::DateTime::now().printTo(Serial);
-
-  Serial.println("");
-  Serial.print("Free heap: ");
-  Serial.print(ESP.getFreeHeap());
-  Serial.println("");
 }
 
-static time_t getTime()	
-{	
-  return RTC.GetDateTime().Epoch32Time();	
+static time_t getTime()
+{
+  return RTC.GetDateTime().Epoch32Time();
 }
 
 void initFlowSensor()
@@ -1013,6 +1009,14 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       else if (command == "saveChannelNames")
       {
         saveChannelNames(root["data"]);
+      }
+      else if (command == "setTime")
+      {
+        JsonObject data = root["data"];
+        RtcDateTime newTime = RtcDateTime(data["year"],data["month"],data["day"],data["hour"],data["minute"],data["second"]);
+        RTC.SetDateTime(newTime);
+        setSyncProvider(getTime);
+        calendarLastCheck = 0;
       }
     }
   }

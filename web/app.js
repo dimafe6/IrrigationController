@@ -1024,3 +1024,16 @@ function getChannelNames() {
     command.command = "getChannelNames";
     ws.send(JSON.stringify(command));
 }
+
+function setTime(year, month, day, hour, minute, second) {
+    var command = {};
+    command.command = "setTime";
+    command.data = {};
+    command.data.year = year;
+    command.data.month = month;
+    command.data.day = day;
+    command.data.hour = hour;
+    command.data.minute = minute;
+    command.data.second = second;
+    ws.send(JSON.stringify(command));
+}
