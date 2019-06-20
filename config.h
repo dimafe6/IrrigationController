@@ -20,6 +20,7 @@
 /* System */
 #define WS_SYS_INFO_INTERVAL 5000
 #define WS_WATER_INFO_INTERVAL 5000
+#define SEND_LOGS_VIA_RADIO true
 
 /* Flow sensor */
 #define FLOW_SENSOR_CALIBRATION 6.5

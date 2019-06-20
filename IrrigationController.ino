@@ -150,12 +150,19 @@ void LOG(const char *format, ...)
   getDateTimeString(datestring);
   sprintf(message, "[%s]: %s", datestring, rawMsg);
   Serial.println(message);
+  char debugJson[1024];
+  sprintf(debugJson, "{\"command\":\"debug\", \"msg\":\"%s\"}", message);
+
   if (ws.count() > 0)
   {
-    char wsMessage[1024];
-    sprintf(wsMessage, "{\"command\":\"debug\", \"msg\":\"%s\"}", message);
-    ws.textAll(wsMessage);
+    ws.textAll(debugJson);
   }
+
+  if (SEND_LOGS_VIA_RADIO)
+  {
+    HC12.println(debugJson);
+  }
+
   va_end(args);
 }
 
