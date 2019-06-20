@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.8.1/css/all.min.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css" />
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.6.3/compressed/themes/default.css" />
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.6.3/compressed/themes/default.time.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.10.0/fullcalendar.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.min.css" />
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datetimepicker/4.17.47/css/bootstrap-datetimepicker.min.css" />
+    <script>
+        window.myWidgetParam ? window.myWidgetParam : window.myWidgetParam = []; window.myWidgetParam.push({ id: 15, cityid: '706200', appid: '0d05fb0926034f4a849664441742cf69', units: 'metric', containerid: 'openweathermap-widget-15', }); (function () { var script = document.createElement('script'); script.async = true; script.charset = "utf-8"; script.src = "//openweathermap.org/themes/openweathermap/assets/vendor/owm/js/weather-widget-generator.js"; var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(script, s); })();
+    </script>
+    <style type="text/css">
+        body {
+            background-color: #ddd
+        }
+
+        h3 {
+            margin-top: 0
+        }
+
+        .navbar {
+            margin-bottom: 5px;
+        }
+
+        .navbar-nav>li>a {
+            line-height: 25px;
+            font-size: 16px;
+        }
+
+        .navbar-nav li a:hover {
+            background-color: #444
+        }
+
+        .navbar-nav .glyphicon {
+            color: #bbb
+        }
+
+        .navbar-nav .active .glyphicon {
+            color: #fff
+        }
+
+        .navbar-nav .fa {
+            color: #bbb
+        }
+
+        .navbar-nav .active .fa {
+            color: #fff
+        }
+
+        .tab-content .tab-pane {
+            display: none;
+            background-color: #fff;
+            overflow-y: auto;
+            padding-bottom: 15px;
+            min-height: 200px;
+        }
+
+        .tab-content .tab-pane.active {
+            display: block
+        }
+
+        .navbar-nav li .badge {
+            background-color: #FF8A65;
+            float: right;
+            margin-bottom: -8px;
+            z-index: 1000;
+            position: relative
+        }
+
+        .page-header {
+            margin-top: 0;
+        }
+
+        #explanation {
+            font-size: 13px
+        }
+
+        #explanation p {
+            margin-bottom: 0;
+            font-size: 13px
+        }
+
+        .col-no-padding {
+            padding-left: 1px;
+            padding-right: 1px
+        }
+
+        #events-list tbody td {
+            vertical-align: middle;
+            padding: 4px;
+        }
+
+        .dropdown-menu li a {
+            cursor: pointer;
+        }
+
+        .no-margin {
+            margin: 0 !important;
+        }
+
+        .bg-blue-400 {
+            background-color: #29B6F6;
+            border-color: #29B6F6;
+            color: #fff;
+        }
+
+        .zone-panel {
+            background-color: #c7c7c7;
+            border-color: #c7c7c7;
+            color: #fff;
+        }
+
+        .zone-panel.active {
+            background-color: #66BB6A;
+            border-color: #66BB6A;
+            color: #fff;
+        }
+
+        .zone-panel .badge {
+            padding: 8px;
+            border-radius: 14px;
+            margin: 4px;
+            float: right;
+            background-color: #ffffff94
+        }
+
+        .zone-panel .running-info {
+            display: none;
+        }
+
+        .zone-panel .next-start {
+            display: block;
+        }
+
+        .zone-panel.active .next-start {
+            display: none;
+        }
+
+        .zone-panel.active .running-info {
+            display: block;
+        }
+
+        .zone-panel.active .badge i:before {
+            content: "\f111";
+            color: green;
+        }
+
+        .zone-panel .badge i:before {
+            content: "\f111";
+            color: transparent;
+        }
+
+        .text-size-small {
+            font-size: 12px;
+        }
+
+        .panel[class*=bg-] .text-muted,
+        .panel[class*=bg-] .help-block,
+        .panel[class*=bg-] .help-inline {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .widget-right {
+            width: 100% !important
+        }
+
+        .weather-block h2,
+        h5 {
+            text-align: center;
+        }
+    </style>
+
+    <title>Irrigation controller</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.6.3/compressed/picker.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pickadate.js/3.6.3/compressed/picker.time.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-recur/1.0.7/moment-recur.min.js"></script>
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/moment-duration-format/2.2.2/moment-duration-format.min.js"></script>
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/mouse0270-bootstrap-notify/3.1.7/bootstrap-notify.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.10.0/fullcalendar.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.min.js"></script>
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datetimepicker/4.17.47/js/bootstrap-datetimepicker.min.js"></script>
+    <script type="text/javascript" src="app.js"></script>
+</head>
+
+<body>
+    <div style="display: none" id="dash-channel-status-block">
+        <div class="col-md-3 col-sm-6">
+            <div class="panel zone-panel">
+                <div class="heading-elements">
+                    <span class="badge bg-info heading-text">
+                        <i class="fa"></i>
+                    </span>
+                </div>
+                <div class="panel-body channel-id" data-zone="">
+                    <h3 class="no-margin channel-name"></h3>
+                    <div class="next-start">
+                        <div>
+                            <span>Next start in: </span>
+                            <span class="next-start-date">N/A</span>
+                        </div>
+                        <div>
+                            <span>Next finish in: </span>
+                            <span class="next-finish-date">N/A</span>
+                        </div>
+                        <div>
+                            <span>Duration: </span>
+                            <span class="next-duration">N/A</span>
+                        </div>
+                        <div>
+                            <span>Elapsed: </span>
+                            <span class="next-elapsed">N/A</span>
+                        </div>
+                        <div>
+                            <span>Event name: </span>
+                            <span class="event-name">N/A</span>
+                        </div>
+                    </div>
+                    <div class="running-info">
+                        <div>
+                            <span>Started in: </span>
+                            <span class="start-date">N/A</span>
+                        </div>
+                        <div>
+                            <span>Finish in: </span>
+                            <span class="finish-date">N/A</span>
+                        </div>
+                        <div>
+                            <span>Duration: </span>
+                            <span class="duration">N/A</span>
+                        </div>
+                        <div>
+                            <span>Elapsed: </span>
+                            <span class="elapsed-time">N/A</span>
+                        </div>
+                        <div>
+                            <span>Event name: </span>
+                            <span class="event-name">N/A</span>
+                        </div>
+                        <div style="float: right;">
+                            <button class="btn btn-warning skip-btn">Skip</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <nav class="navbar navbar-inverse navbar-static-top">
+        <div class="container-fluid">
+            <div class="container">
+                <div class="navbar-header">
+                    <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar"
+                        aria-expanded="false" aria-controls="navbar">
+                        <span class="sr-only">Toggle navigation</span>
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                    </button>
+                    <a class="navbar-brand" href="#">
+                        <div>Irrigation controller</div>
+                        <div id="current-time" class="text-muted text-size-small text-center">2019-06-20 10:00:00</div>
+                    </a>
+                </div>
+                <div id="navbar" class="navbar-collapse collapse">
+                    <ul class="nav navbar-nav">
+                        <li class="active">
+                            <a href="#dashboard" data-toggle="tab">
+                                <span class="fa fa-chart-line"></span>
+                                Dashboard
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#manual-mode" data-toggle="tab">
+                                <span class="fa fa-user-clock"></span>
+                                Manual
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#schedule-mode" data-toggle="tab">
+                                <span class="fa fa-calendar-plus"></span>
+                                Schedule
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#calendar-page" data-toggle="tab">
+                                <span class="fa fa-calendar-alt"></span>
+                                Calendar
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#config" data-toggle="tab">
+                                <span class="fa fa-cog"></span>
+                                Settings
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#weather-config" data-toggle="tab">
+                                <span class="fa fa-cloud-sun-rain"></span>
+                                Weather
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#wifi-config" data-toggle="tab">
+                                <span class="fa fa-wifi"></span>
+                                Wifi
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#firmware-config" data-toggle="tab">
+                                <span class="fa fa-upload"></span>
+                                Firmware
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="alert alert-danger text-center" id="ws-n-conn" role="alert" style="display: none">
+        Connection to WS server failed. Settings will not be saved. Try to reload page.
+    </div>
+    <div class="container">
+        <div class="row">
+            <div class="col-md-12 col-no-padding">
+                <div class="tab-content">
+                    <div class="tab-pane active" id="dashboard">
+                        <div class="page-header text-center">
+                            <h2>Dashboard</h2>
+                        </div>
+                        <div class="col-md-12" id="channel-statuses">
+
+                        </div>
+                        <div class="col-md-12">
+                            <div class="col-md-3 col-sm-6">
+                                <div class="panel bg-blue-400" style="min-height: 136px;">
+                                    <div class="panel-body">
+                                        <h3 class="no-margin">Water</h3>
+                                        <div>
+                                            <span class="text-muted">Flow: </span>
+                                            <span id="water-flow">N/A</span>l/hour
+                                        </div>
+                                        <div>
+                                            <span class="text-muted">Day volume: </span>
+                                            <span id="water-day">N/A</span>l
+                                        </div>
+                                        <div>
+                                            <span class="text-muted">Month volume: </span>
+                                            <span id="water-month">N/A</span>l
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="panel bg-blue-400" style="min-height: 136px;">
+                                    <div class="panel-body">
+                                        <h3 class="no-margin">WiFi</h3>
+                                        <div>
+                                            <span class="text-muted">SSID: </span>
+                                            <span id="wifi-ssid">N/A</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-muted">RSSI: </span>
+                                            <span id="wifi-rssi">N/A</span>dB
+                                        </div>
+                                        <div>
+                                            <span class="text-muted">Local IP: </span>
+                                            <span id="wifi-ip">N/A</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="panel bg-blue-400" style="min-height: 136px;">
+                                    <div class="panel-body">
+                                        <h3 class="no-margin">GSM</h3>
+                                        <div>
+                                            <span class="text-muted">Balance: </span>
+                                            <span id="gsm-balance">N/A</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-muted">Status: </span>
+                                            <span id="gsm-status">N/A</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-muted">Signal: </span>
+                                            <span id="gsm-signal">N/A</span>dB
+                                        </div>
+                                        <div>
+                                            <span class="text-muted">Phone: </span>
+                                            <span id="gsm-phone">N/A</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="panel bg-blue-400">
+                                    <div class="panel-body">
+                                        <h3 class="no-margin">Memory</h3>
+                                        <div>
+                                            <span class="text-muted">Total: </span>
+                                            <span id="mem-total">N/A</span>KB
+                                        </div>
+                                        <div>
+                                            <span class="text-muted">Free: </span>
+                                            <span id="mem-free">N/A</span>KB
+                                        </div>
+                                        <div>
+                                            <span class="text-muted">Min: </span>
+                                            <span id="mem-min">N/A</span>KB
+                                        </div>
+                                        <div>
+                                            <span class="text-muted">Max allocated: </span>
+                                            <span id="mem-max">N/A</span>KB
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-12">
+                            <div class="col-md-3 col-sm-6">
+                                <div class="panel bg-blue-400" style="min-height: 136px;">
+                                    <div class="panel-body">
+                                        <h3 class="no-margin">SPIFFS</h3>
+                                        <div>
+                                            <span class="text-muted">Total: </span>
+                                            <span id="spiffs-total">N/A</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-muted">Used: </span>
+                                            <span id="spiffs-used">N/A</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="panel bg-blue-400" style="min-height: 136px;">
+                                    <div class="panel-body">
+                                        <h3 class="no-margin">SD card</h3>
+                                        <div>
+                                            <span class="text-muted">Total: </span>
+                                            <span id="sd-total">N/A</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-muted">Used: </span>
+                                            <span id="sd-used">N/A</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-muted">Type: </span>
+                                            <span id="sd-type">N/A</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-12 ">
+                            <canvas id="mem-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="tab-pane" id="manual-mode">
+                        <div class="page-header text-center">
+                            <h2>Manual watering</h2>
+                        </div>
+                        <div class="col-md-4 col-md-offset-4 text-center">
+                            <label>Select channels for manual irrigation</label>
+                            <div class="form-group text-center" id="manual-mode-zones">
+                                <div class="btn-group btn-group-justified" data-toggle="buttons">
+                                    <label class="btn btn-sm btn-default active">
+                                        <input type="checkbox" value="0" class="zone1">Relay 1
+                                    </label>
+                                    <label class="btn btn-sm btn-default">
+                                        <input type="checkbox" value="1" class="zone2">Relay 2
+                                    </label>
+                                    <label class="btn btn-sm btn-default">
+                                        <input type="checkbox" value="2" class="zone3">Mosfet 1
+                                    </label>
+                                    <label class="btn btn-sm btn-default">
+                                        <input type="checkbox" value="3" class="zone4">Mosfet 2
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 col-md-offset-4">
+                            <div class="form-group text-center">
+                                <label>Duration</label>
+                                <div class="input-group">
+                                    <input type="number" min="1" max="1440" id="duration" class="form-control"
+                                        aria-describedby="manual-duration-addon" value="5">
+                                    <span class="input-group-addon" id="manual-duration-addon">Min</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 col-md-offset-4 text-center">
+                            <button onclick="stopManualIrrigation()" class="btn btn-danger stop-irrigation-btn"
+                                style="display: none">
+                                <i class="fa fa-stop"></i>
+                                Stop irrigation
+                            </button>
+                            <button onclick="manualIrrigation()" class="btn btn-success start-irrigation-btn">
+                                <i class="fa fa-play"></i>
+                                Start irrigation
+                            </button>
+                        </div>
+                    </div>
+                    <div class="tab-pane" id="schedule-mode">
+                        <div class="page-header text-center">
+                            <h2>Schedule</h2>
+                        </div>
+                        <div class="col-md-6 col-no-padding">
+                            <div class="page-header text-center">
+                                <h4 id="add-event-header">Add event</h4>
+                                <input type="hidden" id="evId" value="" />
+                            </div>
+                            <div class="col-md-12 text-center">
+                                <label>Select channels for irrigation</label>
+                                <div class="form-group text-center" id="schedule-mode-zones">
+                                    <div class="btn-group btn-group-justified" data-toggle="buttons">
+                                        <label class="btn btn-sm btn-default active">
+                                            <input type="checkbox" value="0" class="zone1">Relay 1
+                                        </label>
+                                        <label class="btn btn-sm btn-default">
+                                            <input type="checkbox" value="1" class="zone2">Relay 2
+                                        </label>
+                                        <label class="btn btn-sm btn-default">
+                                            <input type="checkbox" value="2" class="zone3">Mosfet 1
+                                        </label>
+                                        <label class="btn btn-sm btn-default">
+                                            <input type="checkbox" value="3" class="zone4">Mosfet 2
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-12 text-center">
+                                <div class="form-group">
+                                    <label>Periodicity</label>
+                                    <select id="periodicity" class="form-control">
+                                        <option value="0">Hourly</option>
+                                        <option value="1">Every X hours</option>
+                                        <option value="2">Daily</option>
+                                        <option value="3">Every X days</option>
+                                        <option value="4">Weekly</option>
+                                        <option value="5">Monthly</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="period-block hourly" style="display: none">
+                                <div class="col-md-12 text-center" style="padding-left: 0; padding-right: 0">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label>Minute</label>
+                                            <input type="number" class="time-minute form-control" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label>Second</label>
+                                            <input type="number" class="time-second form-control" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="period-block every-x-hours" style="display: none;">
+                                <div class="col-md-12 text-center" style="padding-left: 0; padding-right: 0">
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label>Hours</label>
+                                            <input type="number" class="time-hours form-control" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label>Minute</label>
+                                            <input type="number" class="time-minute form-control" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label>Second</label>
+                                            <input type="number" class="time-second form-control" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="period-block daily" style="display: none">
+                                <div class="col-md-12 text-center">
+                                    <div class="form-group">
+                                        <label>Time</label>
+                                        <input type="number" class="time-hour-minute form-control" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="period-block every-x-days" style="display: none;">
+                                <div class="col-md-12 text-center" style="padding-left: 0; padding-right: 0">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label>Days</label>
+                                            <input type="number" class="time-days form-control" value="2" min="1"
+                                                max="365" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label>Time</label>
+                                            <input type="number" class="time-hour-minute form-control" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="period-block weekly" style="display: none">
+                                <div class="col-md-12 text-center">
+                                    <div class="form-group text-center" id="weekdays-selector">
+                                        <div>
+                                            <label>Week day</label>
+                                        </div>
+                                        <div class="btn-group btn-group-justified" data-toggle="buttons">
+                                            <label class="btn btn-xs btn-default">
+                                                <input type="radio" name="weekday[]" value="1">SUN
+                                            </label>
+                                            <label class="btn btn-xs btn-default active">
+                                                <input type="radio" name="weekday[]" value="2">MON
+                                            </label>
+                                            <label class="btn btn-xs btn-default">
+                                                <input type="radio" name="weekday[]" value="3">TUE
+                                            </label>
+                                            <label class="btn btn-xs btn-default">
+                                                <input type="radio" name="weekday[]" value="4">WED
+                                            </label>
+                                            <label class="btn btn-xs btn-default">
+                                                <input type="radio" name="weekday[]" value="5">THU
+                                            </label>
+                                            <label class="btn btn-xs btn-default">
+                                                <input type="radio" name="weekday[]" value="6">FRI
+                                            </label>
+                                            <label class="btn btn-xs btn-default">
+                                                <input type="radio" name="weekday[]" value="7">SAT
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Time</label>
+                                        <input type="number" class="time-hour-minute form-control" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="period-block monthly" style="display: none;">
+                                <div class="col-md-12 text-center" style="padding-left: 0; padding-right: 0">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label>Day of month</label>
+                                            <input type="number" class="time-day-of-month form-control" value="1"
+                                                min="1" max="31" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label>Time</label>
+                                            <input type="number" class="time-hour-minute form-control" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-12 text-center">
+                                <div class="form-group">
+                                    <label>Duration</label>
+                                    <div class="input-group">
+                                        <input type="number" class="duration form-control"
+                                            aria-describedby="duration-addon" value="5">
+                                        <span class="input-group-addon" id="duration-addon">Min</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-12 text-center">
+                                <div class="form-group">
+                                    <label>Event title</label>
+                                    <input type="text" class="event-title form-control">
+                                </div>
+                            </div>
+
+                            <div class="col-md-12 text-center">
+                                <p class="alert alert-info" id="explanation"></p>
+                            </div>
+
+                            <div class="col-md-12 text-center">
+                                <div class="form-group">
+                                    <button class="btn btn-success add-schedule" onclick="addOrEditSchedule()">
+                                        <i class="fa fa-calendar-plus"></i>
+                                        Add schedule
+                                    </button>
+                                    <button class="btn btn-warning cancel-edit-schedule" style="display: none"
+                                        onclick="cancelEditSchedule()">
+                                        <i class="fa fa-calendar-times"></i>
+                                        Cancel edit
+                                    </button>
+                                    <button class="btn btn-success save-schedule" style="display: none"
+                                        onclick="addOrEditSchedule()">
+                                        <i class="fa fa-calendar-check"></i>
+                                        Save schedule
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-no-padding">
+                            <div class="page-header text-center">
+                                <h4>Events list</h4>
+                            </div>
+                            <div class="col-md-12 col-no-padding text-center">
+                                <p style="font-size: 13px;" id="events-statistic"></p>
+                                <table class="table table-bordered table-responsive" style="font-size: 11px"
+                                    id="events-list">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Period</th>
+                                            <th>Duration</th>
+                                            <th>Channels</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-pane" id="calendar-page">
+                        <div class="page-header text-center">
+                            <h2>Calendar</h2>
+                        </div>
+                        <div class="col-md-12">
+                            <div id="calendar"></div>
+                        </div>
+                    </div>
+                    <div class="tab-pane" id="config">
+                        <div class="page-header text-center">
+                            <h2>Configuration</h2>
+                        </div>
+                        <div class="col-md-12">
+                            <h4 class="text-center">Date and time</h4>
+                            <div class="col-md-6 col-md-offset-3">
+                                <div class="text-center">
+                                    <div id="datetimepicker"></div>
+                                    <button class="btn btn-success save-time-btn">Save time</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <a class="btn btn-default" target="_blank" href="/edit/spiffs">SPIFFS file browser</a>
+                            <a class="btn btn-default" target="_blank" href="/edit/sd">SD card file browser</a>
+                            <a class="btn btn-default" target="_blank" href="/reboot">Reboot controller</a>
+                        </div>
+                    </div>
+                    <div class="tab-pane" id="weather-config">
+                        <div class="page-header text-center">
+                            <h2>Weather</h2>
+                        </div>
+                        <div class="col-md-4 col-sm-12 col-xs-12" style="margin-bottom: 20px">
+                            <div id="openweathermap-widget-15"></div>
+                        </div>
+                        <div class="col-md-2 col-sm-6 col-xs-12 weather-block">
+                            <div class="panel bg-blue-400">
+                                <div class="panel-body">
+                                    <h5 class="no-margin">Temperature</h5>
+                                    <h2 class="w-temp">N/A</h2>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-sm-6 col-xs-12 weather-block">
+                            <div class="panel bg-blue-400">
+                                <div class="panel-body">
+                                    <h5 class="no-margin">Pressure</h5>
+                                    <h2 class="w-press">N/A</h2>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-sm-6 col-xs-12 weather-block">
+                            <div class="panel bg-blue-400">
+                                <div class="panel-body">
+                                    <h5 class="no-margin">Humidity</h5>
+                                    <h2 class="w-hum">N/A</h2>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-sm-6 col-xs-12 weather-block">
+                            <div class="panel bg-blue-400">
+                                <div class="panel-body">
+                                    <h5 class="no-margin">Light</h5>
+                                    <h2 class="w-light">N/A</h2>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-sm-6 col-xs-12 weather-block">
+                            <div class="panel bg-blue-400">
+                                <div class="panel-body">
+                                    <h5 class="no-margin">Water temp.</h5>
+                                    <h2 class="w-water-temp">N/A</h2>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-sm-6 col-xs-12 weather-block">
+                            <div class="panel bg-blue-400">
+                                <div class="panel-body">
+                                    <h5 class="no-margin">Rain</h5>
+                                    <h2 class="w-rain">N/A</h2>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-sm-6 col-xs-12 weather-block">
+                            <div class="panel bg-blue-400">
+                                <div class="panel-body">
+                                    <h5 class="no-margin">Ground hum.</h5>
+                                    <h2 class="w-ground-hum">N/A</h2>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-pane" id="wifi-config">
+                        <div class="page-header text-center">
+                            <h2>WiFi configuration</h2>
+                        </div>
+                        <div class="col-md-4 col-md-offset-4 text-center">
+                            <div class="form-group">
+                                <label>SSID</label>
+                                <input type="text" class="form-control" id="ssid">
+                            </div>
+                            <div class="form-group">
+                                <label>Password</label>
+                                <input type="password" class="form-control" id="pass">
+                            </div>
+                            <div class="form-group">
+                                <button onclick="saveWifiConfig()" class="btn btn-success">Save</button>
+                            </div>
+
+                        </div>
+                    </div>
+                    <div class="tab-pane" id="firmware-config">
+                        <div class="page-header text-center">
+                            <h2>Firmware update</h2>
+                        </div>
+                        <div class="col-md-4 col-md-offset-4 text-center">
+                            <form method="POST" action="/update" enctype="multipart/form-data">
+                                <div class="form-group">
+                                    <input type="file" class="form-control" name="update">
+                                </div>
+                                <div class="form-group">
+                                    <input type="submit" class="btn btn-default" value="Update">
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
