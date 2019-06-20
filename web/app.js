@@ -6,6 +6,7 @@ var calendarEvents = {};
 var availableSlots;
 var calendar;
 var memChart;
+var currentTime = null;
 
 window.addEventListener('beforeunload', (event) => {
     ws.close();
@@ -13,6 +14,24 @@ window.addEventListener('beforeunload', (event) => {
 
 $(document).ready(function () {
     window.myWidgetParam ? window.myWidgetParam : window.myWidgetParam = []; window.myWidgetParam.push({ id: 15, cityid: '706200', appid: '0d05fb0926034f4a849664441742cf69', units: 'metric', containerid: 'openweathermap-widget-15', }); (function () { var script = document.createElement('script'); script.async = true; script.charset = "utf-8"; script.src = "//openweathermap.org/themes/openweathermap/assets/vendor/owm/js/weather-widget-generator.js"; var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(script, s); })();
+
+    $('#datetimepicker').datetimepicker({
+        inline: true,
+        sideBySide: true,
+        format: 'YYYY-MM-DD HH:mm:ss'
+    });
+
+    $(document).on('click', '.save-time-btn', function () {
+        var date = $('#datetimepicker').data("DateTimePicker").viewDate();
+        setTime(date);
+    });
+
+    setInterval(function () {
+        if (null !== currentTime) {
+            currentTime.add(1, 'seconds');
+            $('#current-time').text(currentTime.format('ddd, YYYY-MM-DD HH:mm:ss'));
+        }
+    }, 1000);
 
     moment.updateLocale('en', {
         week: {
@@ -583,6 +602,8 @@ function WebSocketBegin(location) {
                             $('#gsm-status').text(status);
                             $('#gsm-signal').text(data['gsm']['signal']);
                             $('#gsm-phone').text(data['gsm']['phone']);
+                            currentTime = moment(data['time']);
+                            $('#current-time').text(currentTime.format('ddd, YYYY-MM-DD HH:mm:ss'));
                         }
                         break;
                     case 'ongoingEvents':
@@ -679,9 +700,9 @@ function WebSocketBegin(location) {
                             });
                         }
                         break;
-                    case 'debug':
+                    case 'debug': 2
                         console.log(msg);
-                    break;
+                        break;
                 }
             }
         };
@@ -1028,15 +1049,17 @@ function getChannelNames() {
     ws.send(JSON.stringify(command));
 }
 
-function setTime(year, month, day, hour, minute, second) {
+function setTime(date) {
     var command = {};
     command.command = "setTime";
     command.data = {};
-    command.data.year = year;
-    command.data.month = month;
-    command.data.day = day;
-    command.data.hour = hour;
-    command.data.minute = minute;
-    command.data.second = second;
+    command.data.year = date.year();
+    command.data.month = parseInt(date.format('MM'));
+    command.data.day = date.date();
+    command.data.hour = date.hour();
+    command.data.minute = date.minute();
+    command.data.second = date.second();
     ws.send(JSON.stringify(command));
+    currentTime = date;
+    console.log(command);
 }

@@ -65,35 +65,6 @@ volatile float currentDayLitres = 0.0;
 volatile float currentMonthLitres = 0.0;
 volatile float currentFlow = 0.0;
 
-void LOG(const char *format, ...)
-{
-  va_list args;
-  va_start(args, format);
-  char rawMsg[255];
-  vsprintf(rawMsg, format, args);  
-  char message[512];
-  char datestring[20];
-  RtcDateTime now = RTC.GetDateTime();
-  snprintf_P(datestring,
-             countof(datestring),
-             PSTR("%04u-%02u-%02u %02u:%02u:%02u"),
-             now.Year(),
-             now.Month(),
-             now.Day(),
-             now.Hour(),
-             now.Minute(),
-             now.Second());
-  sprintf(message, "[%s]: %s", datestring, rawMsg);
-  Serial.println(message);
-  if (ws.count() > 0)
-  {
-    char wsMessage[1024];
-    sprintf(wsMessage, "{\"command\":\"debug\", \"msg\":\"%s\"}", message);
-    ws.textAll(wsMessage);
-  }
-  va_end(args);
-}
-
 void setup()
 {
   disableCore0WDT();
@@ -152,6 +123,40 @@ void initPins()
   digitalWrite(LOAD_RELAY_2, LOW);
   digitalWrite(LOAD_MOSFET_1, LOW);
   digitalWrite(LOAD_MOSFET_2, LOW);
+}
+
+void getDateTimeString(char *dateTime)
+{
+  RtcDateTime now = RTC.GetDateTime();
+  snprintf_P(dateTime,
+             countof(dateTime),
+             PSTR("%04u-%02u-%02u %02u:%02u:%02u"),
+             now.Year(),
+             now.Month(),
+             now.Day(),
+             now.Hour(),
+             now.Minute(),
+             now.Second());
+}
+
+void LOG(const char *format, ...)
+{
+  va_list args;
+  va_start(args, format);
+  char rawMsg[255];
+  vsprintf(rawMsg, format, args);
+  char message[512];
+  char datestring[20];
+  getDateTimeString(datestring);
+  sprintf(message, "[%s]: %s", datestring, rawMsg);
+  Serial.println(message);
+  if (ws.count() > 0)
+  {
+    char wsMessage[1024];
+    sprintf(wsMessage, "{\"command\":\"debug\", \"msg\":\"%s\"}", message);
+    ws.textAll(wsMessage);
+  }
+  va_end(args);
 }
 
 void initRtc()
@@ -560,6 +565,9 @@ void sendSysInfoToWS()
     sysInfo["command"] = "getSysInfo";
 
     JsonObject data = sysInfo.createNestedObject("data");
+    char datestring[20];
+    getDateTimeString(datestring);
+    data["time"] = datestring;
     JsonObject wifi = data.createNestedObject("WiFi");
     wifi["SSID"] = WiFi.SSID();
     wifi["RSSI"] = WiFi.RSSI();
@@ -859,7 +867,7 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
     eventData.remove("evId");
   }
 
-  bool isEnabled = enabled.as<bool>();  
+  bool isEnabled = enabled.as<bool>();
 
   switch (periodicity)
   {
