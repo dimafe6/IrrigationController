@@ -602,9 +602,10 @@ function WebSocketBegin(location) {
                             $('#gsm-status').text(status);
                             $('#gsm-signal').text(data['gsm']['signal']);
                             $('#gsm-phone').text(data['gsm']['phone']);
-                            currentTime = moment(data['time']);
-                            $('#current-time').text(currentTime.format('ddd, YYYY-MM-DD HH:mm:ss'));
                         }
+
+                        currentTime = moment(data['time']);
+                        $('#current-time').text(currentTime.format('ddd, YYYY-MM-DD HH:mm:ss'));
                         break;
                     case 'ongoingEvents':
                         $('.zone-panel').removeClass('active');

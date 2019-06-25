@@ -1,19 +1,17 @@
 #include "secrets.h"
 #include "config.h"
-#include <ArduinoJson.h>
+#include <ArduinoJson.h> //6.11.0
 #include <Wire.h>
-#include <RtcDS3231.h>
+#include <RtcDS3231.h> //2.3.3
 #include <WiFi.h>
 #include <FS.h>
 #include <SPIFFS.h>
 #include "SD.h"
-#include <ESPAsyncWebServer.h>
+#include <ESPAsyncWebServer.h> //a0d5c618ffdf976890a18a5e05e8ccd5c1ea90ed
 #include <SPIFFSEditor.h>
 #include <Time.h>
 #include <Update.h>
 #include "src/Chronos/src/Chronos.h"
-
-#define countof(a) (sizeof(a) / sizeof(a[0]))
 
 SPIClass spiSD(HSPI);
 AsyncWebServer server(HTTP_PORT);
@@ -64,6 +62,7 @@ volatile float totalLitres = 0.0;
 volatile float currentDayLitres = 0.0;
 volatile float currentMonthLitres = 0.0;
 volatile float currentFlow = 0.0;
+bool pressed = false;
 
 void setup()
 {
@@ -79,14 +78,6 @@ void setup()
   initSPIFFS();
   initWiFi();
   initWebServer();
-  xTaskCreatePinnedToCore(
-      secondCoreLoop,
-      "secondCoreLoop",
-      15000,
-      NULL,
-      4,
-      NULL,
-      0);
 }
 
 void loop()
@@ -101,15 +92,27 @@ void loop()
   flowCalculate();
   sendSysInfoToWS();
   sendWaterInfoToWS();
+  listenRadio();
+  saveStatistic();
+  //TODO
+  if (pressed)
+  {
+    if (manualIrrigationRunning)
+    {
+      stopManualIrrigation();
+    }
+    else
+    {
+      addManualEventToCalendar();
+    }
+    pressed = false;
+  }
 }
 
-void secondCoreLoop(void *parameter)
+void IRAM_ATTR isr()
 {
-  while (true)
-  {
-    listenRadio();
-    saveStatistic();
-  }
+  Serial.println("MOTION DETECTED!!!");
+  pressed = true;
 }
 
 void initPins()
@@ -123,34 +126,17 @@ void initPins()
   digitalWrite(LOAD_RELAY_2, LOW);
   digitalWrite(LOAD_MOSFET_1, LOW);
   digitalWrite(LOAD_MOSFET_2, LOW);
+  //TODO
+  pinMode(35, INPUT_PULLDOWN);
+  attachInterrupt(digitalPinToInterrupt(35), isr, RISING);
 }
 
-void getDateTimeString(char *dateTime)
+void LOG(const char *msg)
 {
-  RtcDateTime now = RTC.GetDateTime();
-  snprintf_P(dateTime,
-             countof(dateTime),
-             PSTR("%04u-%02u-%02u %02u:%02u:%02u"),
-             now.Year(),
-             now.Month(),
-             now.Day(),
-             now.Hour(),
-             now.Minute(),
-             now.Second());
-}
-
-void LOG(const char *format, ...)
-{
-  va_list args;
-  va_start(args, format);
-  char rawMsg[255];
-  vsprintf(rawMsg, format, args);
-  char message[512];
-  char datestring[20];
-  getDateTimeString(datestring);
-  sprintf(message, "[%s]: %s", datestring, rawMsg);
+  char message[256];
+  sprintf(message, "[%04u-%02u-%02u %02u:%02u:%02u]: %s", year(), month(), day(), hour(), minute(), second(), msg);
   Serial.println(message);
-  char debugJson[1024];
+  char debugJson[512];
   sprintf(debugJson, "{\"command\":\"debug\", \"msg\":\"%s\"}", message);
 
   if (ws.count() > 0)
@@ -162,15 +148,13 @@ void LOG(const char *format, ...)
   {
     HC12.println(debugJson);
   }
-
-  va_end(args);
 }
 
 void initRtc()
 {
   RTC.Begin();
   RTC.Enable32kHzPin(false);
-  RTC.SetSquareWavePin(DS3231SquareWavePin_ModeAlarmBoth);
+  RTC.SetSquareWavePin(DS3231SquareWavePin_ModeNone);
   RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
 
   if (!RTC.IsDateTimeValid())
@@ -436,7 +420,7 @@ void initWebServer()
     response->addHeader("Connection", "close");
     request->send(response); }, [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
     if(!index){
-      LOG("Update Start: %s\n", filename.c_str());
+      LOG("Update Start");
       if(!Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000)){
         Update.printError(Serial);
       }
@@ -573,7 +557,7 @@ void sendSysInfoToWS()
 
     JsonObject data = sysInfo.createNestedObject("data");
     char datestring[20];
-    getDateTimeString(datestring);
+    sprintf(datestring, "%04u-%02u-%02u %02u:%02u:%02u", year(), month(), day(), hour(), minute(), second());
     data["time"] = datestring;
     JsonObject wifi = data.createNestedObject("WiFi");
     wifi["SSID"] = WiFi.SSID();
@@ -803,7 +787,9 @@ void addOrEditSchedule(const JsonObject &eventData)
   {
     evId = eventId.as<int>();
 
-    LOG("Edit schedule #%d", evId);
+    char tmp[32];
+    sprintf(tmp, "Edit schedule #%d", evId);
+    LOG(tmp);
     eventData.remove("skipUntil");
     eventData["enabled"] = MyCalendar.isEnabled(evId);
     MyCalendar.removeAll(evId);
@@ -880,7 +866,6 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
   {
   case Periodicity::HOURLY:
   {
-    LOG("Event id: %d, %s", evId, "HOURLY");
     byte minute = eventData["minute"];
     byte second = eventData["second"];
 
@@ -889,7 +874,6 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
   break;
   case Periodicity::EVERY_X_HOUR:
   {
-    LOG("Event id: %d, %s", evId, "EVERY_X_HOUR");
     byte hours = eventData["hours"];
     byte minute = eventData["minute"];
     byte second = eventData["second"];
@@ -899,7 +883,6 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
   break;
   case Periodicity::DAILY:
   {
-    LOG("Event id: %d, %s", evId, "DAILY");
     byte hour = eventData["hour"];
     byte minute = eventData["minute"];
 
@@ -908,7 +891,6 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
   break;
   case Periodicity::EVERY_X_DAYS:
   {
-    LOG("Event id: %d, %s", evId, "EVERY_X_DAYS");
     byte days = eventData["days"];
     byte hour = eventData["hour"];
     byte minute = eventData["minute"];
@@ -918,7 +900,6 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
   break;
   case Periodicity::WEEKLY:
   {
-    LOG("Event id: %d, %s", evId, "WEEKLY");
     byte dayOfWeek = eventData["dayOfWeek"];
     byte hour = eventData["hour"];
     byte minute = eventData["minute"];
@@ -928,7 +909,6 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
   break;
   case Periodicity::MONTHLY:
   {
-    LOG("Event id: %d, %s", evId, "MONTHLY");
     byte dayOfMonth = eventData["dayOfMonth"];
     byte hour = eventData["hour"];
     byte minute = eventData["minute"];
@@ -943,12 +923,8 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
   return eventSaved;
 }
 
-void addManualEventToCalendar(const JsonObject &eventData)
+void addManualEventToCalendar(int duration, bool *channels)
 {
-  int duration = eventData["duration"];
-  bool _channels[CHANNELS_COUNT] = {false};
-  getChannelsFromJson(eventData["channels"], _channels);
-
   File manualFile = SD.open(MANUAL_IRRIGATION_FILE_NAME, FILE_WRITE);
   if (!manualFile)
   {
@@ -957,19 +933,39 @@ void addManualEventToCalendar(const JsonObject &eventData)
   }
 
   MyCalendar.remove(MANUAL_IRRIGATION_EVENT_ID);
-  if (MyCalendar.add(Chronos::Event(MANUAL_IRRIGATION_EVENT_ID, Chronos::DateTime::now(), Chronos::DateTime::now() + Chronos::Span::Minutes(duration), _channels)))
+  if (MyCalendar.add(Chronos::Event(MANUAL_IRRIGATION_EVENT_ID, Chronos::DateTime::now(), Chronos::DateTime::now() + Chronos::Span::Minutes(duration), channels)))
   {
     DynamicJsonDocument manual(128);
     manual["from"] = Chronos::DateTime::now().asEpoch();
     manual["to"] = (Chronos::DateTime::now() + Chronos::Span::Minutes(duration)).asEpoch();
-    manual["channels"] = eventData["channels"];
-    manual["duration"] = eventData["duration"];
+    manual["channels"] = channels;
+    manual["duration"] = duration;
 
     serializeJson(manual, manualFile);
     manualFile.close();
     calendarLastCheck = 0;
     WSTextAll(MANUAL_IRRIGATION_STATUS_TRUE);
   }
+}
+
+void addManualEventToCalendar(const JsonObject &eventData)
+{
+  int duration = eventData["duration"];
+  bool _channels[CHANNELS_COUNT] = {false};
+  getChannelsFromJson(eventData["channels"], _channels);
+
+  addManualEventToCalendar(duration, _channels);
+}
+
+void addManualEventToCalendar()
+{
+  bool _channels[CHANNELS_COUNT] = {false};
+  for (int i = 0; i < 4; i++)
+  {
+    _channels[i] = true;
+  }
+
+  addManualEventToCalendar(525600, _channels);
 }
 
 void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len)
@@ -1055,7 +1051,9 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
         JsonObject data = root["data"];
         RtcDateTime newTime = RtcDateTime(data["year"], data["month"], data["day"], data["hour"], data["minute"], data["second"]);
         RTC.SetDateTime(newTime);
-        setSyncProvider(getTime);
+        setTime(RTC.GetDateTime().Epoch32Time());
+        Chronos::DateTime::now().printTo(Serial);
+
         calendarLastCheck = 0;
       }
     }
@@ -1069,11 +1067,11 @@ void performUpdate(Stream &updateSource, size_t updateSize)
     size_t written = Update.writeStream(updateSource);
     if (written == updateSize)
     {
-      LOG("Written: %d successfully", written);
+      LOG("Written successfully");
     }
     else
     {
-      LOG("Written only: %d/%d. Retry?", written, updateSize);
+      LOG("Written not completed");
     }
     if (Update.end())
     {
@@ -1090,7 +1088,7 @@ void performUpdate(Stream &updateSource, size_t updateSize)
     }
     else
     {
-      LOG("Error Occurred. Error #%d", Update.getError());
+      LOG("Error Occurred");
     }
   }
   else
@@ -1189,9 +1187,18 @@ void initSD()
   }
 
   uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-  LOG("SD Card Size: %lluMB\n", cardSize);
-  LOG("Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
-  LOG("Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
+
+  char cs[32];
+  sprintf(cs, "SD Card Size: %lluMB\n", cardSize);
+  LOG(cs);
+
+  char ts[32];
+  sprintf(ts, "Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
+  LOG(ts);
+
+  char us[32];
+  sprintf(us, "Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
+  LOG(us);
 
   updateFromFS(SD);
 }
@@ -1199,8 +1206,13 @@ void initSD()
 void initSPIFFS()
 {
   SPIFFS.begin(true);
-  LOG("Total space: %dKB\n", SPIFFS.totalBytes() / (1024));
-  LOG("Used space: %dKB\n", SPIFFS.usedBytes() / (1024));
+  char ts[32];
+  sprintf(ts, "Total space: %dKB\n", SPIFFS.totalBytes() / (1024));
+  LOG(ts);
+
+  char us[32];
+  sprintf(us, "Used space: %dKB\n", SPIFFS.usedBytes() / (1024));
+  LOG(us);
 }
 
 void initSerial()
@@ -1223,16 +1235,20 @@ void checkCalendar()
     Chronos::Event::Occurrence occurrenceList[CALENDAR_OCCURRENCES_LIST_SIZE];
     int numOngoing = MyCalendar.listOngoing(CALENDAR_OCCURRENCES_LIST_SIZE, occurrenceList, Chronos::DateTime::now());
 
+    manualIrrigationRunning = false;
+
     if (numOngoing)
     {
       for (int i = 0; i < numOngoing; i++)
       {
-        LOG("**** Event %d", (int)occurrenceList[i].id);
+        Serial.printf("**** Event %d\n", (int)occurrenceList[i].id);
         (Chronos::DateTime::now() - occurrenceList[i].finish).printTo(Serial);
         Serial.println("");
 
         if ((int)occurrenceList[i].id == MANUAL_IRRIGATION_EVENT_ID)
         {
+          manualIrrigationRunning = true;
+
           //Manual irrigation
           WSTextAll(MANUAL_IRRIGATION_STATUS_TRUE);
           if ((Chronos::DateTime::now() - occurrenceList[i].finish) <= 1)
@@ -1419,7 +1435,9 @@ void WiFiEvent(WiFiEvent_t event)
     LOG("Authentication mode of access point has changed");
     break;
   case SYSTEM_EVENT_STA_GOT_IP:
-    LOG("Obtained IP address: %s", WiFi.localIP());
+    char tmp[64];
+    sprintf(tmp, "Obtained IP address: %s", WiFi.localIP().toString());
+    LOG(tmp);
     break;
   case SYSTEM_EVENT_STA_LOST_IP:
     LOG("Lost IP address and IP address is reset to 0");
