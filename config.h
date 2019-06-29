@@ -42,7 +42,6 @@
 #define SCHEDULE_FILE_SIZE 8000
 
 /* WS messages */
-#define MANUAL_IRRIGATION_STATUS_TRUE "{\"command\":\"manualIrrigation\",\"status\":true}"
 #define MANUAL_IRRIGATION_STOP "{\"command\":\"stopManualIrrigation\"}"
 #define SCHEDULE_ADD_EDIT "{\"command\":\"addOrEditSchedule\"}"
 

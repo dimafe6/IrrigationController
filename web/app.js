@@ -266,9 +266,8 @@ $(document).ready(function () {
         $('#schedule-mode .cancel-edit-schedule').show();
         $('#schedule-mode .event-title').val(slot.title);
         $('#schedule-mode-zones option:selected').removeAttr('selected');
-
         $.each(slot.channels, function (index, value) {
-            $('#schedule-mode-zones').val(value);
+            $(`#schedule-mode-zones option:eq(${value})`).attr('selected', true);
         });
 
         $('#periodicity').val(slot.periodicity).trigger('change');
@@ -521,10 +520,6 @@ function WebSocketBegin(location) {
                 var data = jsonObject.data || null;
                 var msg = jsonObject.msg || null;
                 switch (command) {
-                    case 'manualIrrigation':
-                        $('#manual-mode .stop-irrigation-btn').show();
-                        $('#manual-mode .start-irrigation-btn').hide();
-                        break;
                     case 'stopManualIrrigation':
                         $('#manual-mode .stop-irrigation-btn').hide();
                         $('#manual-mode .start-irrigation-btn').show();
@@ -612,6 +607,15 @@ function WebSocketBegin(location) {
                         $('.start-date, .finish-date, .elapsed-time, .running-info .event-name').html("N/A");
                         data.sort(compareOccurences);
                         $.each(data, function (index, occurence) {
+                            $('#manual-mode .stop-irrigation-btn').hide();
+                            $('#manual-mode .start-irrigation-btn').show();
+                            if (occurence.isManual) {
+                                $('#manual-mode .stop-irrigation-btn').show();
+                                $('#manual-mode .start-irrigation-btn').hide();
+                                $.each(occurence.channels, function (index, value) {
+                                    $(`#manual-mode-zones option:eq(${index})`).attr('selected', value == 1);
+                                });
+                            }
                             $.each(occurence.channels, function (index, zone) {
                                 var $zonePanelBody = $('div[data-zone="' + index + '"]');
                                 var $zonePanel = $zonePanelBody.closest('.zone-panel');

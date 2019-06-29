@@ -924,7 +924,6 @@ void addManualEventToCalendar(const JsonObject &eventData)
     serializeJson(manual, manualFile);
     manualFile.close();
     calendarLastCheck = 0;
-    WSTextAll(MANUAL_IRRIGATION_STATUS_TRUE);
   }
 }
 
@@ -1206,7 +1205,7 @@ void checkCalendar()
         if ((int)occurrenceList[i].id == MANUAL_IRRIGATION_EVENT_ID)
         {
           //Manual irrigation
-          WSTextAll(MANUAL_IRRIGATION_STATUS_TRUE);
+          //WSTextAll(MANUAL_IRRIGATION_STATUS_TRUE);
           if ((Chronos::DateTime::now() - occurrenceList[i].finish) <= 1)
           {
             stopManualIrrigation();
@@ -1245,6 +1244,7 @@ void checkCalendar()
           occurrence["to"] = occurrenceList[i].finish.asEpoch();
           occurrence["elapsed"] = (Chronos::DateTime::now() - occurrenceList[i].finish).totalSeconds();
           occurrence["evId"] = occurrenceList[i].id;
+          occurrence["isManual"] = (int)occurrenceList[i].id == MANUAL_IRRIGATION_EVENT_ID;
         }
       }
 
