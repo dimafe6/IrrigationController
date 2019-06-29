@@ -54,7 +54,6 @@ unsigned long sendSysInfoPrevTime = WS_SYS_INFO_INTERVAL;
 unsigned long sendWaterInfoPrevTime = WS_WATER_INFO_INTERVAL;
 
 bool shouldReboot = false;
-bool manualIrrigationRunning = false;
 volatile int flowPulses = 0;
 
 float flowCalibrationFactor = FLOW_SENSOR_CALIBRATION;
@@ -62,7 +61,6 @@ volatile float totalLitres = 0.0;
 volatile float currentDayLitres = 0.0;
 volatile float currentMonthLitres = 0.0;
 volatile float currentFlow = 0.0;
-bool pressed = false;
 
 void setup()
 {
@@ -94,25 +92,6 @@ void loop()
   sendWaterInfoToWS();
   listenRadio();
   saveStatistic();
-  //TODO
-  if (pressed)
-  {
-    if (manualIrrigationRunning)
-    {
-      stopManualIrrigation();
-    }
-    else
-    {
-      addManualEventToCalendar();
-    }
-    pressed = false;
-  }
-}
-
-void IRAM_ATTR isr()
-{
-  Serial.println("MOTION DETECTED!!!");
-  pressed = true;
 }
 
 void initPins()
@@ -126,9 +105,6 @@ void initPins()
   digitalWrite(LOAD_RELAY_2, LOW);
   digitalWrite(LOAD_MOSFET_1, LOW);
   digitalWrite(LOAD_MOSFET_2, LOW);
-  //TODO
-  pinMode(35, INPUT_PULLDOWN);
-  attachInterrupt(digitalPinToInterrupt(35), isr, RISING);
 }
 
 void LOG(const char *msg)
@@ -923,49 +899,33 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
   return eventSaved;
 }
 
-void addManualEventToCalendar(int duration, bool *channels)
-{
-  File manualFile = SD.open(MANUAL_IRRIGATION_FILE_NAME, FILE_WRITE);
-  if (!manualFile)
-  {
-    LOG("Failed to start irrigation");
-    return;
-  }
-
-  MyCalendar.remove(MANUAL_IRRIGATION_EVENT_ID);
-  if (MyCalendar.add(Chronos::Event(MANUAL_IRRIGATION_EVENT_ID, Chronos::DateTime::now(), Chronos::DateTime::now() + Chronos::Span::Minutes(duration), channels)))
-  {
-    DynamicJsonDocument manual(128);
-    manual["from"] = Chronos::DateTime::now().asEpoch();
-    manual["to"] = (Chronos::DateTime::now() + Chronos::Span::Minutes(duration)).asEpoch();
-    manual["channels"] = channels;
-    manual["duration"] = duration;
-
-    serializeJson(manual, manualFile);
-    manualFile.close();
-    calendarLastCheck = 0;
-    WSTextAll(MANUAL_IRRIGATION_STATUS_TRUE);
-  }
-}
-
 void addManualEventToCalendar(const JsonObject &eventData)
 {
   int duration = eventData["duration"];
   bool _channels[CHANNELS_COUNT] = {false};
   getChannelsFromJson(eventData["channels"], _channels);
 
-  addManualEventToCalendar(duration, _channels);
-}
-
-void addManualEventToCalendar()
-{
-  bool _channels[CHANNELS_COUNT] = {false};
-  for (int i = 0; i < 4; i++)
+  File manualFile = SD.open(MANUAL_IRRIGATION_FILE_NAME, FILE_WRITE);
+  if (!manualFile)
   {
-    _channels[i] = true;
+    Serial.println(F("Failed to start irrigation"));
+    return;
   }
 
-  addManualEventToCalendar(525600, _channels);
+  MyCalendar.remove(MANUAL_IRRIGATION_EVENT_ID);
+  if (MyCalendar.add(Chronos::Event(MANUAL_IRRIGATION_EVENT_ID, Chronos::DateTime::now(), Chronos::DateTime::now() + Chronos::Span::Minutes(duration), _channels)))
+  {
+    DynamicJsonDocument manual(128);
+    manual["from"] = Chronos::DateTime::now().asEpoch();
+    manual["to"] = (Chronos::DateTime::now() + Chronos::Span::Minutes(duration)).asEpoch();
+    manual["channels"] = eventData["channels"];
+    manual["duration"] = eventData["duration"];
+
+    serializeJson(manual, manualFile);
+    manualFile.close();
+    calendarLastCheck = 0;
+    WSTextAll(MANUAL_IRRIGATION_STATUS_TRUE);
+  }
 }
 
 void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len)
@@ -1235,8 +1195,6 @@ void checkCalendar()
     Chronos::Event::Occurrence occurrenceList[CALENDAR_OCCURRENCES_LIST_SIZE];
     int numOngoing = MyCalendar.listOngoing(CALENDAR_OCCURRENCES_LIST_SIZE, occurrenceList, Chronos::DateTime::now());
 
-    manualIrrigationRunning = false;
-
     if (numOngoing)
     {
       for (int i = 0; i < numOngoing; i++)
@@ -1247,8 +1205,6 @@ void checkCalendar()
 
         if ((int)occurrenceList[i].id == MANUAL_IRRIGATION_EVENT_ID)
         {
-          manualIrrigationRunning = true;
-
           //Manual irrigation
           WSTextAll(MANUAL_IRRIGATION_STATUS_TRUE);
           if ((Chronos::DateTime::now() - occurrenceList[i].finish) <= 1)
