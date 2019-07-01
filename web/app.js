@@ -606,9 +606,9 @@ function WebSocketBegin(location) {
                         $('.zone-panel').removeClass('active');
                         $('.start-date, .finish-date, .elapsed-time, .running-info .event-name').html("N/A");
                         data.sort(compareOccurences);
+                        $('#manual-mode .stop-irrigation-btn').hide();
+                        $('#manual-mode .start-irrigation-btn').show();
                         $.each(data, function (index, occurence) {
-                            $('#manual-mode .stop-irrigation-btn').hide();
-                            $('#manual-mode .start-irrigation-btn').show();
                             if (occurence.isManual) {
                                 $('#manual-mode .stop-irrigation-btn').show();
                                 $('#manual-mode .start-irrigation-btn').hide();
@@ -705,8 +705,8 @@ function WebSocketBegin(location) {
                             });
                         }
                         break;
-                    case 'debug': 2
-                        console.log(msg);
+                    case 'debug':
+                        $('#logs-textarea').append(`${msg}\r\n`);
                         break;
                 }
             }

@@ -64,8 +64,6 @@ volatile float currentFlow = 0.0;
 
 void setup()
 {
-  disableCore0WDT();
-
   initPins();
   initSerial();
   initRtc();
@@ -1204,8 +1202,6 @@ void checkCalendar()
 
         if ((int)occurrenceList[i].id == MANUAL_IRRIGATION_EVENT_ID)
         {
-          //Manual irrigation
-          //WSTextAll(MANUAL_IRRIGATION_STATUS_TRUE);
           if ((Chronos::DateTime::now() - occurrenceList[i].finish) <= 1)
           {
             stopManualIrrigation();
