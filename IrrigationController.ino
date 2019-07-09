@@ -26,13 +26,13 @@ AsyncWebHandler *sdEditorHandler;
 
 enum Periodicity
 {
-  ONCE = -1,
   HOURLY,
   EVERY_X_HOUR,
   DAILY,
   EVERY_X_DAYS,
   WEEKLY,
-  MONTHLY
+  MONTHLY,
+  ONCE
 };
 
 struct WeatherData
@@ -888,6 +888,17 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
     byte minute = eventData["minute"];
 
     eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Monthly(dayOfMonth, hour, minute), Chronos::Span::Minutes(duration), _channels, isEnabled));
+  }
+  case Periodicity::ONCE:
+  {
+    int year = eventData["year"];
+    byte month = eventData["month"];
+    byte day = eventData["day"];
+    byte hour = eventData["hour"];
+    byte minute = eventData["minute"];
+    byte second = eventData["second"];
+
+    eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::DateTime(year, month, day, hour, minute, second), Chronos::Span::Minutes(duration), _channels, isEnabled));
   }
   break;
   }

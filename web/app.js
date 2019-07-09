@@ -1,7 +1,7 @@
 var websocketServerLocation = "ws://" + location.hostname + "/ws";
 var ws;
 var weekNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thuesday", "Friday", "Saturday"];
-var periodicityList = { "-1": "Once", "0": "Hourly", "1": "Every X hours", "2": "Daily", "3": "Every X days", "4": "Weekly", "5": "Monthly" };
+var periodicityList = {"0": "Hourly", "1": "Every X hours", "2": "Daily", "3": "Every X days", "4": "Weekly", "5": "Monthly", "6": "Once", };
 var calendarEvents = {};
 var availableSlots;
 var calendar;
@@ -21,6 +21,13 @@ $(document).ready(function () {
         format: 'YYYY-MM-DD HH:mm:ss'
     });
 
+    $('#one-time-datetimepicker').datetimepicker({
+        inline: true,
+        sideBySide: true,
+        format: 'YYYY-MM-DD HH:mm:ss',
+        minDate: new Date()
+    });
+
     $(document).on('click', '.save-time-btn', function () {
         var date = $('#datetimepicker').data("DateTimePicker").viewDate();
         setTime(date);
@@ -31,6 +38,7 @@ $(document).ready(function () {
             currentTime.add(1, 'seconds');
             $('#current-time').text(currentTime.format('ddd, YYYY-MM-DD HH:mm:ss'));
         }
+        $('#one-time-datetimepicker').data("DateTimePicker").minDate(new Date());
     }, 1000);
 
     moment.updateLocale('en', {
@@ -147,6 +155,12 @@ $(document).ready(function () {
                                 var interval = moment(currDate).recur(start, end).every(slot.dayOfMonth).dayOfMonth();
                                 processInterval(interval, slot);
                                 break;
+                            case 6:
+                                events.push({
+                                    title: slot.title,
+                                    start: startDate
+                                });
+                                break;
                         }
                     }
                 });
@@ -225,6 +239,10 @@ $(document).ready(function () {
             case 5:
                 $('.period-block ').hide();
                 $('.period-block.monthly').show();
+                break;
+            case 6:
+                $('.period-block ').hide();
+                $('.period-block.one-time').show();
                 break;
             default:
                 $('.period-block ').hide();
@@ -305,6 +323,10 @@ $(document).ready(function () {
                 var $periodBlock = $('.period-block.monthly');
                 $periodBlock.find('.time-hour-minute').pickatime().pickatime('picker').set('select', [slot.hour, slot.minute]);
                 $periodBlock.find('.time-day-of-month').pickatime().pickatime('picker').set('select', slot.dayOfMonth);
+                break;
+            case 6:
+                var date = moment([slot.year, slot.month, slot.day, slot.hour, slot.minute, slot.second, 0]);
+                $('#one-time-datetimepicker').data("DateTimePicker").date(date);
                 break;
         }
     });
@@ -850,6 +872,15 @@ function getSchedule() {
                 $scheduleBlock.find('.duration').val(maxDuration);
                 eventSlot.duration = maxDuration;
             }
+        case 6:
+            var date = $('#one-time-datetimepicker').data("DateTimePicker").viewDate();
+            eventSlot.year = date.year();
+            eventSlot.month = parseInt(date.format('MM'));
+            eventSlot.day = parseInt(date.format('MM'));
+            eventSlot.hour = date.hour();
+            eventSlot.minute = date.minute();
+            eventSlot.second = date.second();
+            eventSlot.periodicity = 6;
             break;
     }
 
@@ -944,6 +975,11 @@ function getExplanationForSchedule(scheduleObject) {
                 currDate.add(1, 'M');
                 explanationString += getExampleText(currDate, scheduleObject);
             }
+        case 6:
+            var currDate = moment([scheduleObject.year, scheduleObject.month, scheduleObject.day, scheduleObject.hour, scheduleObject.minute, scheduleObject.second, 0]);
+            on = `${currDate.format('YYYY-MM-DD HH:mm:ss')}`;
+            explanationString = `Irrigation for zone(s) ${zonesString} on ${currDate.format('YYYY-MM-DD HH:mm:ss')} with a duration of ${durationStr}\n`;
+            title = `One time`;
             break;
     }
 
