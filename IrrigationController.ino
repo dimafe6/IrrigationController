@@ -23,6 +23,7 @@ DefineCalendarType(Calendar, CALENDAR_MAX_NUM_EVENTS);
 Calendar MyCalendar;
 AsyncWebHandler *spiffsEditorHandler;
 AsyncWebHandler *sdEditorHandler;
+static AsyncClient *aClient = NULL;
 
 enum Periodicity
 {
@@ -73,7 +74,7 @@ void setup()
   loadManualIrrigationFromSD();
   initSPIFFS();
   initWiFi();
-  initWebServer();
+  initWebServer();  
 }
 
 void loop()
@@ -1220,7 +1221,8 @@ void checkCalendar()
         }
 
         // If the current event is not recurring and is overdue then delete it
-        if(MyCalendar.isOverdue((int)occurrenceList[i].id)) {
+        if (MyCalendar.isOverdue((int)occurrenceList[i].id))
+        {
           removeEvent((int)occurrenceList[i].id);
         }
 
@@ -1394,6 +1396,7 @@ void WiFiEvent(WiFiEvent_t event)
     break;
   case SYSTEM_EVENT_STA_CONNECTED:
     LOG("Connected to access point");
+    getForecast();
     break;
   case SYSTEM_EVENT_STA_DISCONNECTED:
     LOG("Disconnected from WiFi access point");
@@ -1466,4 +1469,69 @@ bool dateIsValid()
 {
   RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
   return year() >= compiled.Year();
+}
+
+void getForecast()
+{
+  if (aClient)
+  {
+    return;
+  }
+
+  aClient = new AsyncClient();
+  if (!aClient)
+  {
+    return;
+  }
+
+  LOG("Updating forecast");
+
+  aClient->onError(
+      [](void *arg, AsyncClient *client, int error) {
+        LOG("Connect Error");
+        aClient = NULL;
+        delete client;
+      },
+      NULL);
+
+  aClient->onConnect(
+      [](void *arg, AsyncClient *client) {
+        aClient->onError(NULL, NULL);
+
+        client->onDisconnect(
+            [](void *arg, AsyncClient *c) {
+              aClient = NULL;
+              delete c;
+            },
+            NULL);
+
+        client->onData(
+            [](void *arg, AsyncClient *c, void *data, size_t len) {
+              LOG("Response is received");
+              String response;
+              String responseBody;
+              response.reserve(len);
+              responseBody.reserve(len);
+              uint8_t *d = (uint8_t *)data;
+              for (size_t i = 0; i < len; i++)
+              {
+                response.concat((char)d[i]);
+              }              
+
+              responseBody = response.substring(response.indexOf("\r\n"));
+              Serial.println(response);
+            },
+            NULL);
+
+        client->write("GET /forecasts/v1/daily/1day/324505?apikey=voIi7jr9NqwJcp7A7sKZodtFth22HbWz&language=ru-ru&metric=true HTTP/1.1\r\nHost: dataservice.accuweather.com\r\n\r\n");
+      },
+      NULL);
+
+  if (!aClient->connect("dataservice.accuweather.com", 80))
+  {
+    LOG("Connect Fail");
+    AsyncClient *client = aClient;
+    aClient = NULL;
+    delete client;
+  }
 }
