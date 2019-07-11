@@ -1219,6 +1219,11 @@ void checkCalendar()
           }
         }
 
+        // If the current event is not recurring and is overdue then delete it
+        if(MyCalendar.isOverdue((int)occurrenceList[i].id)) {
+          removeEvent((int)occurrenceList[i].id);
+        }
+
         for (byte n = 0; n < CHANNELS_COUNT; n++)
         {
           currentChannelsState[n] = currentChannelsState[n] ?: occurrenceList[i].channels[n];
