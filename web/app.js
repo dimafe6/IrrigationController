@@ -1,7 +1,7 @@
 var websocketServerLocation = "ws://" + location.hostname + "/ws";
 var ws;
 var weekNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thuesday", "Friday", "Saturday"];
-var periodicityList = {"0": "Hourly", "1": "Every X hours", "2": "Daily", "3": "Every X days", "4": "Weekly", "5": "Monthly", "6": "Once", };
+var periodicityList = { "0": "Hourly", "1": "Every X hours", "2": "Daily", "3": "Every X days", "4": "Weekly", "5": "Monthly", "6": "Once", };
 var calendarEvents = {};
 var availableSlots;
 var calendar;
@@ -14,7 +14,6 @@ window.addEventListener('beforeunload', (event) => {
 
 $(document).ready(function () {
     window.myWidgetParam ? window.myWidgetParam : window.myWidgetParam = []; window.myWidgetParam.push({ id: 15, cityid: '706200', appid: '0d05fb0926034f4a849664441742cf69', units: 'metric', containerid: 'openweathermap-widget-15', }); (function () { var script = document.createElement('script'); script.async = true; script.charset = "utf-8"; script.src = "//openweathermap.org/themes/openweathermap/assets/vendor/owm/js/weather-widget-generator.js"; var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(script, s); })();
-
     $('#datetimepicker').datetimepicker({
         inline: true,
         sideBySide: true,
@@ -72,6 +71,20 @@ $(document).ready(function () {
         height: "auto",
         validRange: {
             start: moment().format("YYYY-MM-DD")
+        },
+        selectable: true,
+        selectHelper: true,
+        selectAllow: function (info) {
+            if (info.start.isBefore(moment()))
+                return false;
+            return true;
+        },
+        select: function (startDate, endDate) {
+            $('#periodicity').val(6).trigger('change');
+            $('#one-time-datetimepicker').data("DateTimePicker").date(startDate);
+            var duration = moment.duration(endDate.diff(startDate)).as('minutes');
+            $('#schedule-mode .duration').val(duration);
+            $("a[href='#schedule-mode']").click();
         },
         events: function (start, end, timezone, callback) {
             var events = [];
