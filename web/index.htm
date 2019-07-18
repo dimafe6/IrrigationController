@@ -183,6 +183,15 @@
             height: 1.2em;
             white-space: nowrap;
         }
+        .fc td, .fc th {
+            vertical-align: middle;
+        }
+        .fc-more-cell {
+            text-align: right;
+        }
+        .fc-more {
+            margin: 0 !important;
+        }
     </style>
 
     <title>Irrigation controller</title>
@@ -281,7 +290,7 @@
             </div>
             <div id="navbar" class="navbar-collapse collapse">
                 <ul class="nav navbar-nav">
-                    <li class="active">
+                    <li>
                         <a href="#dashboard" data-toggle="tab">
                             <span class="fa fa-chart-line"></span>
                             Dashboard
@@ -299,7 +308,7 @@
                             Schedule
                         </a>
                     </li>
-                    <li>
+                    <li class="active">
                         <a href="#calendar-page" data-toggle="tab">
                             <span class="fa fa-calendar-alt"></span>
                             Calendar
@@ -341,7 +350,7 @@
         <div class="row">
             <div class="col-md-12 col-no-padding">
                 <div class="tab-content">
-                    <div class="tab-pane active" id="dashboard">
+                    <div class="tab-pane" id="dashboard">
                         <div class="page-header text-center">
                             <h2>Dashboard</h2>
                         </div>
@@ -733,7 +742,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="tab-pane" id="calendar-page">
+                    <div class="tab-pane active" id="calendar-page">
                         <div class="page-header text-center">
                             <h2>Calendar</h2>
                         </div>

@@ -57,11 +57,11 @@ $(document).ready(function () {
 
     calendar = $('#calendar').fullCalendar({
         slotDuration: "00:15:00",
-        defaultView: 'agendaWeek',
+        defaultView: 'month',
         header: {
             left: 'prev,next today',
             center: 'title',
-            right: 'agendaWeek,listWeek,agendaDay'
+            right: 'month,agendaWeek,listWeek,agendaDay'
         },
         displayEventTime: true,
         displayEventEnd: true,
@@ -72,7 +72,15 @@ $(document).ready(function () {
         },
         selectable: true,
         selectHelper: true,
+        nowIndicator: true,
+        eventLimitText: 'events',
+        eventBackgroundColor: '#3a87ad59',
+        eventBorderColor: '#3a87ad59',
+        eventTextColor: '#000000d6',
+        eventLimit: 1,
         selectAllow: function (info) {
+            if (calendar.fullCalendar('getView').name === 'month')
+                return false;
             if (info.start.isBefore(moment()))
                 return false;
             return true;
@@ -178,6 +186,9 @@ $(document).ready(function () {
 
                 callback(events);
             }
+        },
+        eventAfterAllRender: function (view) {
+            fetchWeatherForecast();
         }
     })
 
@@ -1051,4 +1062,25 @@ function setTime(date) {
     ws.send(JSON.stringify(command));
     currentTime = date;
     console.log(command);
+}
+
+function fetchWeatherForecast() {
+    $.get("https://dataservice.accuweather.com/forecasts/v1/daily/5day/324505?apikey=voIi7jr9NqwJcp7A7sKZodtFth22HbWz&language=ru-ru&details=true&metric=true", function (weatherData) {
+        console.log(weatherData);
+        $.each(weatherData.DailyForecasts, function(index, forecast) {
+            console.log(forecast);
+            var date = moment(forecast.Date);
+            var element = $(`td.fc-day[data-date=${date.format('YYYY-MM-DD')}]`);
+            var dayIcon = forecast.Day.Icon;
+            var dayIconAlt = forecast.Day.LongPhrase;
+            var nightIconAlt = forecast.Night.LongPhrase;
+            if(dayIcon < 10) {
+                dayIcon = `0${dayIcon}`;
+            }
+            dayIcon = `https://developer.accuweather.com/sites/default/files/${dayIcon}-s.png`;
+
+            element.append(`
+            <div><img src='${dayIcon}' alt='${dayIconAlt}' title='${dayIconAlt}'/></div>`)
+        });
+    });
 }
