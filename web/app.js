@@ -188,7 +188,7 @@ $(document).ready(function () {
             }
         },
         eventAfterAllRender: function (view) {
-            fetchWeatherForecast();
+            //fetchWeatherForecast();
         }
     })
 
@@ -835,7 +835,7 @@ function getSchedule() {
             var date = $('#one-time-datetimepicker').data("DateTimePicker").viewDate();
             eventSlot.year = date.year();
             eventSlot.month = parseInt(date.format('MM'));
-            eventSlot.day = parseInt(date.format('MM'));
+            eventSlot.day = date.date();
             eventSlot.hour = date.hour();
             eventSlot.minute = date.minute();
             eventSlot.second = date.second();
@@ -938,7 +938,7 @@ function getExplanationForSchedule(scheduleObject) {
             var currDate = moment([scheduleObject.year, scheduleObject.month, scheduleObject.day, scheduleObject.hour, scheduleObject.minute, scheduleObject.second, 0]);
             on = `${currDate.format('YYYY-MM-DD HH:mm:ss')}`;
             explanationString = `Irrigation for zone(s) ${zonesString} on ${currDate.format('YYYY-MM-DD HH:mm:ss')} with a duration of ${durationStr}\n`;
-            title = `One time`;
+            title = `Once`;
             break;
     }
 
