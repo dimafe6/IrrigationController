@@ -5,7 +5,6 @@ var periodicityList = { "0": "Hourly", "1": "Every X hours", "2": "Daily", "3": 
 var calendarEvents = {};
 var availableSlots;
 var calendar;
-var memChart;
 var currentTime = null;
 
 window.addEventListener('beforeunload', (event) => {
@@ -13,7 +12,6 @@ window.addEventListener('beforeunload', (event) => {
 });
 
 $(document).ready(function () {
-    window.myWidgetParam ? window.myWidgetParam : window.myWidgetParam = []; window.myWidgetParam.push({ id: 15, cityid: '706200', appid: '0d05fb0926034f4a849664441742cf69', units: 'metric', containerid: 'openweathermap-widget-15', }); (function () { var script = document.createElement('script'); script.async = true; script.charset = "utf-8"; script.src = "//openweathermap.org/themes/openweathermap/assets/vendor/owm/js/weather-widget-generator.js"; var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(script, s); })();
     $('#datetimepicker').datetimepicker({
         inline: true,
         sideBySide: true,
@@ -356,62 +354,6 @@ $(document).ready(function () {
 
     $(document).on('click', '.cancel-edit-schedule', cancelEditSchedule);
 
-    memChart = new Chart.Line($('#mem-chart'), {
-        data: {
-            labels: [],
-            datasets: [
-                {
-                    label: "Total",
-                    data: [],
-                    borderWidth: 1,
-                    backgroundColor: [
-                        'rgba(0, 255, 26, 0.4)',
-                    ],
-                },
-                {
-                    label: "Free",
-                    data: [],
-                    borderWidth: 1,
-                    backgroundColor: [
-                        'rgba(38, 0, 255, 0.4)',
-                    ],
-                },
-                {
-                    label: "Min allocated",
-                    data: [],
-                    borderWidth: 1,
-                    backgroundColor: [
-                        'rgba(255, 0, 0, 0.4)',
-                    ],
-                },
-                {
-                    label: "Max allocated",
-                    data: [],
-                    borderWidth: 1,
-                    backgroundColor: [
-                        'rgba(255, 174, 0, 0.4)',
-                    ],
-                }
-            ]
-        },
-        options: {
-            title: {
-                display: true,
-                text: "Memory chart"
-            },
-            tooltips: {
-                mode: 'index',
-                intersect: false,
-                callbacks: {
-                    label: function (t, d) {
-                        var label = d.datasets[t.datasetIndex].label || '';
-                        return `${label}: ${t.yLabel.toString()}KB`;
-                    }
-                }
-            },
-        }
-    });
-
     $(document).on('click', '.running-info .skip-btn', function () {
         var evId = parseInt($(this).closest('.running-info').attr('data-evid'));
         if (evId === 25) {
@@ -597,13 +539,6 @@ function WebSocketBegin(location) {
                             $('#mem-free').text(free);
                             $('#mem-min').text(min);
                             $('#mem-max').text(max);
-
-                            memChart.data.labels.push(moment().format("HH:mm:ss"));
-                            memChart.data.datasets[0].data.push(total);
-                            memChart.data.datasets[1].data.push(free);
-                            memChart.data.datasets[2].data.push(min);
-                            memChart.data.datasets[3].data.push(max);
-                            memChart.update();
                         }
 
                         if (data['gsm']) {
