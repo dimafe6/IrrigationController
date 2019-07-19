@@ -47,6 +47,11 @@ struct WeatherData
   volatile int groundHum = NULL;
 } volatile weatherData;
 
+struct Settings
+{
+  String location;
+} settings;
+
 volatile unsigned long HC12LastUpdate = 0;
 unsigned long calendarLastCheck = 0;
 unsigned long flowPrevTime = 0;
@@ -70,6 +75,7 @@ void setup()
   initRtc();
   initSD();
   createChannelNamesIfNotExists();
+  loadSettings();
   loadCalendarFromSD();
   loadManualIrrigationFromSD();
   initSPIFFS();
@@ -261,6 +267,64 @@ void saveChannelNames(const JsonArray &data)
     channelsFile.close();
     sendChannelNamesToWS();
   }
+}
+
+void saveSettings(const JsonObject &data)
+{
+  if (!SD.exists(SETTINGS_FILE_NAME))
+  {
+    File settingsFile;
+    settingsFile = SD.open(SETTINGS_FILE_NAME, FILE_WRITE);
+    settingsFile.print("{}");
+    settingsFile.close();
+  }
+
+  if (SD.exists(SETTINGS_FILE_NAME))
+  {
+    File settingsFile;
+    settingsFile = SD.open(SETTINGS_FILE_NAME, FILE_READ);
+    DynamicJsonDocument settingsDoc(4096);
+    deserializeJson(settingsDoc, settingsFile);
+    JsonObject settingsObject = settingsDoc.to<JsonObject>();
+    settingsFile.close();
+
+    for (auto kvp : data)
+    {
+      settingsObject[kvp.key()] = kvp.value();
+    }
+
+    settingsFile = SD.open(SETTINGS_FILE_NAME, FILE_WRITE);
+    serializeJson(settingsDoc, settingsFile);
+    settingsFile.close();
+    loadSettings();
+  }
+}
+
+void loadSettings()
+{
+  if (SD.exists(SETTINGS_FILE_NAME))
+  {
+    File settingsFile;
+    settingsFile = SD.open(SETTINGS_FILE_NAME, FILE_READ);
+    DynamicJsonDocument settingsDoc(4096);
+    deserializeJson(settingsDoc, settingsFile);
+    JsonObject settingsObject = settingsDoc.as<JsonObject>();
+    settingsFile.close();
+
+    settings.location = settingsObject["location"].as<String>();
+  }
+}
+
+void sendSettingsToWS()
+{
+  DynamicJsonDocument settingsDoc(1024);
+  settingsDoc["command"] = "getSettings";
+
+  JsonObject data = settingsDoc.createNestedObject("data");
+
+  data["location"] = settings.location;
+
+  sendDocumentToWs(settingsDoc);
 }
 
 void saveStatistic()
@@ -1045,6 +1109,14 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
         Chronos::DateTime::now().printTo(Serial);
 
         calendarLastCheck = 0;
+      }
+      else if (command == "saveSettings")
+      {
+        saveSettings(root["data"]);
+      }
+      else if (command == "getSettings")
+      {
+        sendSettingsToWS();
       }
     }
   }

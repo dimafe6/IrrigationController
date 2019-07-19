@@ -6,6 +6,8 @@ var calendarEvents = {};
 var availableSlots;
 var calendar;
 var currentTime = null;
+var settings = { "location": null };
+const weatherAPIKey = "4e3720d2b7234ec8b8585710191907";
 
 window.addEventListener('beforeunload', (event) => {
     ws.close();
@@ -56,10 +58,11 @@ $(document).ready(function () {
     });
 
     calendar = $('#calendar').fullCalendar({
+        themeSystem: 'bootstrap3',
         slotDuration: "00:15:00",
         defaultView: 'month',
         header: {
-            left: 'prev,next today',
+            left: 'prev,next,today',
             center: 'title',
             right: 'month,agendaWeek,listWeek,agendaDay'
         },
@@ -192,8 +195,8 @@ $(document).ready(function () {
                 callback(events);
             }
         },
-        eventAfterAllRender: function (view) {
-            //fetchWeatherForecast();
+        viewRender: function (view, element) {
+            fetchWeatherForecast();
         }
     })
 
@@ -403,6 +406,28 @@ $(document).ready(function () {
         command.data = channelNames;
         ws.send(JSON.stringify(command));
     });
+
+    $('.location-typeahead').typeahead({
+        delay: 1000,
+        source: function (query, process) {
+            return $.get('http://api.apixu.com/v1/search.json?key=4e3720d2b7234ec8b8585710191907', { q: query }, function (data) {
+                var cities = [];
+                $.each(data, function (index, element) {
+                    cities.push(element.name);
+                });
+                return process(cities);
+            });
+        }
+    });
+
+    $(document).on('click', '.save-location-btn', function () {
+        var command = {};
+        command.command = "saveSettings";
+        command.data = {};
+        command.data.location = $('.location-typeahead').val();
+        console.log(command);
+        ws.send(JSON.stringify(command));
+    });
 });
 
 function getMomentFromEpoch(epoch) {
@@ -501,6 +526,7 @@ function WebSocketBegin(location) {
         ws = new WebSocket(location);
         ws.onopen = function () {
             $('#ws-n-conn').hide();
+            getSettings();
             getSysInfo();
             getChannelNames();
             getSlots();
@@ -695,6 +721,11 @@ function WebSocketBegin(location) {
                         break;
                     case 'debug':
                         $('#logs-textarea').append(`${msg}\r\n`);
+                        break;
+                    case 'getSettings':
+                        settings.location = data["location"];
+
+                        $('.location-typeahead').val(settings.location);
                         break;
                 }
             }
@@ -1072,22 +1103,68 @@ function setTime(date) {
 }
 
 function fetchWeatherForecast() {
-    $.get("https://dataservice.accuweather.com/forecasts/v1/daily/5day/324505?apikey=21DGSmAEdEvQ2izOz8oc0dL8elFSt6jv&language=ru-ru&details=true&metric=true", function (weatherData) {
-        console.log(weatherData);
-        $.each(weatherData.DailyForecasts, function (index, forecast) {
+    var process = function (weatherData) {
+        $('.weather-block').remove();
+        $.each(weatherData.forecast.forecastday, function (index, forecast) {
             console.log(forecast);
-            var date = moment(forecast.Date);
-            var element = $(`td.fc-day[data-date=${date.format('YYYY-MM-DD')}]`);
-            var dayIcon = forecast.Day.Icon;
-            var dayIconAlt = forecast.Day.LongPhrase;
-            var nightIconAlt = forecast.Night.LongPhrase;
-            if (dayIcon < 10) {
-                dayIcon = `0${dayIcon}`;
+            var monthDayElement = $(`td.fc-day[data-date="${forecast.date}"]`);
+            var weekHeaderElement = $(`th.fc-day-header[data-date="${forecast.date}"]`);
+            var dayIcon = forecast.day.condition.icon;
+            var dayIconAlt = forecast.day.condition.text;
+            var tempMin = forecast.day.mintemp_c;
+            var tempMax = forecast.day.maxtemp_c;
+            var totalprecip = forecast.day.totalprecip_mm;
+            var uvIndex = forecast.day.uv;
+            var uvIndexColor = "green";
+            var uvIndexTitle = "No protection required";
+            if (uvIndex >= 3 && uvIndex <= 5) {
+                uvIndexColor = "#f8af44";
+                uvIndexTitle = "Protection required";
+            } else if (uvIndex > 5 && uvIndex <= 7) {
+                uvIndexColor = "#f7941e";
+                uvIndexTitle = "Protection essential";
+            } else if (uvIndex > 7 && uvIndex <= 10) {
+                uvIndexColor = "#de401f";
+                uvIndexTitle = "Need shade";
+            } else if (uvIndex > 11) {
+                uvIndexColor = "#aa5b99";
+                uvIndexTitle = "Can't go outdor";
             }
-            dayIcon = `https://developer.accuweather.com/sites/default/files/${dayIcon}-s.png`;
 
-            element.append(`
-            <div><img src='${dayIcon}' alt='${dayIconAlt}' title='${dayIconAlt}'/></div>`)
+            var template = `
+            <div class='weather-block'>
+                <img src='${dayIcon}' alt='${dayIconAlt}' title='${dayIconAlt}'/>
+                <div style="margin-left: 6px" class="hidden-xs">
+                    <span title="Min temperature" style="font-size: 12px"><i class="fa fa-temperature-low"/> ${tempMin}°C</span>                    
+                    <span title="Max temperature" style="font-size: 12px"><i class="fa fa-temperature-high"/> ${tempMax}°C</span>
+                </div>
+                <div style="margin-left: 5px" class="hidden-xs">
+                    <span title="UV-index(${uvIndexTitle})" style="font-size: 12px; color: ${uvIndexColor}"><i class="fa fa-sun"/> ${uvIndex}</span>    
+                    <span title="Amount of precipitation" style="font-size: 12px"><i class="fa fa-tint"/> ${totalprecip}mm </span>                    
+                </div>
+            </div>`;
+
+            monthDayElement.append(template);
+            weekHeaderElement.append(template);
         });
-    });
+    };
+    var currentWeather = JSON.parse(localStorage.getItem("currentWeather"));
+    var lastWeatherUpdate = currentWeather ? currentWeather.location.localtime_epoch : moment().unix();
+    var needUpdate = moment().unix() - lastWeatherUpdate > 10800; // Last update more then 3h ago
+    console.log(currentWeather, lastWeatherUpdate, moment().unix(), needUpdate);
+    if (null === currentWeather || needUpdate) {
+        $.get(`http://api.apixu.com/v1/forecast.json?key=${weatherAPIKey}&q=${settings.location}&days=10&lang=en`, function (weatherData) {
+            console.log(weatherData);
+            localStorage.setItem("currentWeather", JSON.stringify(weatherData));
+            process(weatherData);
+        });
+    } else {
+        process(currentWeather);
+    }
+}
+
+function getSettings() {
+    var command = {};
+    command.command = "getSettings";
+    ws.send(JSON.stringify(command));
 }

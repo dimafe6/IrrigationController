@@ -183,14 +183,28 @@
             height: 1.2em;
             white-space: nowrap;
         }
-        .fc td, .fc th {
+
+        .fc td,
+        .fc th {
             vertical-align: middle;
         }
+
         .fc-more-cell {
             text-align: right;
         }
+
         .fc-more {
             margin: 0 !important;
+        }
+        .fc-day .weather-block {
+            top: 22px;
+            position: relative;
+        }
+        .fc-day-header .weather-block {
+            font-weight: normal;
+        }
+        .fc-day .weather-block img{
+            max-width: 50px;
         }
     </style>
 
@@ -208,6 +222,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.10.0/fullcalendar.min.js"></script>
     <script
         src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datetimepicker/4.17.47/js/bootstrap-datetimepicker.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-3-typeahead/4.0.2/bootstrap3-typeahead.min.js"
+        integrity="sha256-LOnFraxKlOhESwdU/dX+K0GArwymUDups0czPWLEg4E=" crossorigin="anonymous"></script>
     <script type="text/javascript" src="app.js"></script>
 </head>
 
@@ -526,7 +542,8 @@
                             <div class="col-md-6 col-md-offset-3 text-center">
                                 <label>Select channels for irrigation</label>
                                 <div class="form-group text-center">
-                                    <select id="schedule-mode-zones" class="form-control text-center" multiple="multiple" size="5">
+                                    <select id="schedule-mode-zones" class="form-control text-center"
+                                        multiple="multiple" size="5">
 
                                     </select>
                                 </div>
@@ -759,7 +776,7 @@
                             <div class="col-md-6 col-md-offset-3">
                                 <div class="text-center">
                                     <div id="datetimepicker"></div>
-                                    <button class="btn btn-success save-time-btn">Save time</button>
+                                    <button class="btn btn-sm btn-success save-time-btn">Save time</button>
                                 </div>
                             </div>
                         </div>
@@ -771,6 +788,13 @@
                                         browser</a>
                                     <a class="btn btn-default" target="_blank" href="/edit/sd">SD card file browser</a>
                                     <a class="btn btn-default" target="_blank" href="/reboot">Reboot controller</a>
+                                </div>
+                            </div>
+                            <div class="col-md-6 col-md-offset-3">
+                                <h4>Location</h4>
+                                <div class="col-md-12">
+                                    <input type="text" class="location-typeahead form-control" data-provide="typeahead" style="margin-bottom: 20px">
+                                    <button class="btn btn-sm btn-success save-location-btn">Save location</button>
                                 </div>
                             </div>
                             <div class="col-md-6 col-md-offset-3">
@@ -787,7 +811,7 @@
                                         <tbody>
                                         </tbody>
                                     </table>
-                                    <button class="btn btn-sm btn-success save-channel-names-btn">Save</button>
+                                    <button class="btn btn-sm btn-success save-channel-names-btn">Save channel names</button>
                                 </div>
                             </div>
                         </div>

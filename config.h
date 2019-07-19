@@ -35,6 +35,7 @@
 #define MANUAL_IRRIGATION_FILE_NAME "/manual.json"
 #define SCHEDULE_FILE_NAME "/schedule.json"
 #define CHANNELS_FILE_NAME "/channels.json"
+#define SETTINGS_FILE_NAME "/settings.json"
 
 /* Web server configuration */
 #define HTTP_PORT 80
