@@ -116,6 +116,7 @@ $(document).ready(function () {
             if (calendarEvents.slots !== undefined) {
                 $.each(calendarEvents.slots, function (index, slot) {
                     if (slot.enabled) {
+
                         var currDate = moment(start);
                         if (start < moment()) {
                             currDate = moment();
@@ -175,9 +176,13 @@ $(document).ready(function () {
                                 processInterval(interval, slot);
                                 break;
                             case 6:
+                                var startDate = moment([slot.year, slot.month - 1, slot.day, slot.hour, slot.minute, slot.second, 0]);
+                                var endDate = moment(startDate);
+                                endDate.add(slot.duration, 'm');
                                 events.push({
                                     title: slot.title,
-                                    start: startDate
+                                    start: startDate,
+                                    end: endDate
                                 });
                                 break;
                         }
@@ -347,7 +352,9 @@ $(document).ready(function () {
                 $periodBlock.find('.time-day-of-month').pickatime().pickatime('picker').set('select', slot.dayOfMonth);
                 break;
             case 6:
-                var date = moment([slot.year, slot.month, slot.day, slot.hour, slot.minute, slot.second, 0]);
+
+                var date = moment([slot.year, slot.month - 1, slot.day, slot.hour, slot.minute, slot.second, 0]);
+                console.log(date);
                 $('#one-time-datetimepicker').data("DateTimePicker").date(date);
                 break;
         }
@@ -935,7 +942,7 @@ function getExplanationForSchedule(scheduleObject) {
                 explanationString += getExampleText(currDate, scheduleObject);
             }
         case 6:
-            var currDate = moment([scheduleObject.year, scheduleObject.month, scheduleObject.day, scheduleObject.hour, scheduleObject.minute, scheduleObject.second, 0]);
+            var currDate = moment([scheduleObject.year, scheduleObject.month - 1, scheduleObject.day, scheduleObject.hour, scheduleObject.minute, scheduleObject.second, 0]);
             on = `${currDate.format('YYYY-MM-DD HH:mm:ss')}`;
             explanationString = `Irrigation for zone(s) ${zonesString} on ${currDate.format('YYYY-MM-DD HH:mm:ss')} with a duration of ${durationStr}\n`;
             title = `Once`;
@@ -1065,16 +1072,16 @@ function setTime(date) {
 }
 
 function fetchWeatherForecast() {
-    $.get("https://dataservice.accuweather.com/forecasts/v1/daily/5day/324505?apikey=voIi7jr9NqwJcp7A7sKZodtFth22HbWz&language=ru-ru&details=true&metric=true", function (weatherData) {
+    $.get("https://dataservice.accuweather.com/forecasts/v1/daily/5day/324505?apikey=21DGSmAEdEvQ2izOz8oc0dL8elFSt6jv&language=ru-ru&details=true&metric=true", function (weatherData) {
         console.log(weatherData);
-        $.each(weatherData.DailyForecasts, function(index, forecast) {
+        $.each(weatherData.DailyForecasts, function (index, forecast) {
             console.log(forecast);
             var date = moment(forecast.Date);
             var element = $(`td.fc-day[data-date=${date.format('YYYY-MM-DD')}]`);
             var dayIcon = forecast.Day.Icon;
             var dayIconAlt = forecast.Day.LongPhrase;
             var nightIconAlt = forecast.Night.LongPhrase;
-            if(dayIcon < 10) {
+            if (dayIcon < 10) {
                 dayIcon = `0${dayIcon}`;
             }
             dayIcon = `https://developer.accuweather.com/sites/default/files/${dayIcon}-s.png`;

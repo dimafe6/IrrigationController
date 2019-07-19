@@ -639,6 +639,9 @@ bool setEventEnabled(byte evId, bool enabled)
     return false;
   }
 
+  schedule[evId].remove("skipUntil");
+  MyCalendar.skipEvent(evId, Chronos::DateTime(1970, 1, 1));
+
   File scheduleFile = SD.open(SCHEDULE_FILE_NAME, FILE_WRITE);
   if (!scheduleFile)
   {
@@ -664,14 +667,6 @@ bool skipEvent(byte evId)
 
   Chronos::DateTime finish = MyCalendar.closestFinish(evId);
   MyCalendar.skipEvent(evId, finish);
-    
-  if (MyCalendar.isOverdue(evId))
-  {
-    //Remove overdue event and exit
-    removeEvent(evId);
-    sendSlotsToWS();
-    return true;
-  }
 
   calendarLastCheck = 0;
 
@@ -775,6 +770,7 @@ void addOrEditSchedule(const JsonObject &eventData)
     sprintf(tmp, "Edit schedule #%d", evId);
     LOG(tmp);
     eventData.remove("skipUntil");
+    MyCalendar.skipEvent(evId, Chronos::DateTime(1970, 1, 1));
     eventData["enabled"] = MyCalendar.isEnabled(evId);
     MyCalendar.removeAll(evId);
   }
@@ -831,6 +827,7 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
   bool eventSaved = false;
   JsonVariant enabled = eventData["enabled"];
   JsonVariant evIdElem = eventData["evId"];
+  bool isSkip = !eventData["skipUntil"].isNull();
   Chronos::EpochTime skipUntilTime = eventData["skipUntil"];
   Chronos::DateTime skipUntil = Chronos::DateTime(skipUntilTime);
 
@@ -913,7 +910,14 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
   break;
   }
 
-  MyCalendar.skipEvent(evId, skipUntil);
+  if (isSkip)
+  {
+    //MyCalendar.skipEvent(evId, skipUntil);
+    Chronos::DateTime finish = MyCalendar.closestFinish(evId);
+    MyCalendar.skipEvent(evId, finish);
+
+    calendarLastCheck = 0;
+  }
 
   return eventSaved;
 }
@@ -1014,7 +1018,15 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       }
       else if (command == "skipEvent")
       {
-        skipEvent(root["data"]["evId"]);
+        if (MyCalendar.isRecurring(root["data"]["evId"]))
+        {
+          skipEvent(root["data"]["evId"]);
+        }
+        else
+        {
+          removeEvent(root["data"]["evId"]);
+          sendSlotsToWS();
+        }
       }
       else if (command == "getChannelNames")
       {
