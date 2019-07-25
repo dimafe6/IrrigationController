@@ -1,13 +1,14 @@
-var websocketServerLocation = "ws://" + location.hostname + "/ws";
+const weekNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thuesday", "Friday", "Saturday"];
+const periodicityList = { "0": "Hourly", "1": "Every X hours", "2": "Daily", "3": "Every X days", "4": "Weekly", "5": "Monthly", "6": "Once", };
+const weatherAPIKey = "4e3720d2b7234ec8b8585710191907";
+const accuWeatherAPIKey = "RaYMmA9InMAKC1LMtLs63llkY2mXem38";
+const websocketServerLocation = "ws://" + location.hostname + "/ws";
+
 var ws;
-var weekNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thuesday", "Friday", "Saturday"];
-var periodicityList = { "0": "Hourly", "1": "Every X hours", "2": "Daily", "3": "Every X days", "4": "Weekly", "5": "Monthly", "6": "Once", };
 var calendarEvents = {};
 var availableSlots;
 var calendar;
 var currentTime = null;
-var settings = { "location": null };
-const weatherAPIKey = "4e3720d2b7234ec8b8585710191907";
 
 window.addEventListener('beforeunload', (event) => {
     ws.close();
@@ -56,149 +57,6 @@ $(document).ready(function () {
         },
             100);
     });
-
-    calendar = $('#calendar').fullCalendar({
-        themeSystem: 'bootstrap3',
-        slotDuration: "00:15:00",
-        defaultView: 'month',
-        header: {
-            left: 'prev,next,today',
-            center: 'title',
-            right: 'month,agendaWeek,listWeek,agendaDay'
-        },
-        displayEventTime: true,
-        displayEventEnd: true,
-        allDaySlot: false,
-        height: "auto",
-        validRange: {
-            start: moment().format("YYYY-MM-DD")
-        },
-        selectable: true,
-        selectHelper: true,
-        nowIndicator: true,
-        eventLimitText: 'events',
-        eventBackgroundColor: '#3a87ad59',
-        eventBorderColor: '#3a87ad59',
-        eventTextColor: '#000000d6',
-        eventLimit: 1,
-        selectAllow: function (info) {
-            if (calendar.fullCalendar('getView').name === 'month')
-                return false;
-            if (info.start.isBefore(moment()))
-                return false;
-            return true;
-        },
-        select: function (startDate, endDate) {
-            $('#periodicity').val(6).trigger('change');
-            $('#one-time-datetimepicker').data("DateTimePicker").date(startDate);
-            var duration = moment.duration(endDate.diff(startDate)).as('minutes');
-            $('#schedule-mode .duration').val(duration);
-            $("a[href='#schedule-mode']").click();
-        },
-        events: function (start, end, timezone, callback) {
-            var events = [];
-
-            var processInterval = function (interval, slot) {
-                var occurences = interval.all();
-                for (var i = 0; i < occurences.length; i++) {
-                    occurences[i].minute(slot.minute).hour(slot.hour).second(slot.second || 0);
-                    var startDate = moment(occurences[i]);
-                    if (startDate < moment()) {
-                        continue;
-                    }
-                    var endDate = moment(startDate);
-                    endDate.add(slot.duration, 'm');
-                    events.push({
-                        title: slot.title,
-                        start: startDate,
-                        end: endDate
-                    });
-                };
-            };
-
-            if (calendarEvents.slots !== undefined) {
-                $.each(calendarEvents.slots, function (index, slot) {
-                    if (slot.enabled) {
-
-                        var currDate = moment(start);
-                        if (start < moment()) {
-                            currDate = moment();
-                        }
-
-                        switch (slot.periodicity) {
-                            case 0:
-                                currDate.minute(slot.minute).second(slot.second);
-                                if (currDate < moment()) {
-                                    currDate.add(1, 'h');
-                                }
-                                while (currDate >= start && currDate < end) {
-                                    var endDate = moment(currDate);
-                                    endDate.add(slot.duration, 'm');
-                                    var startDate = moment(currDate);
-                                    events.push({
-                                        title: slot.title,
-                                        start: startDate,
-                                        end: endDate
-                                    });
-
-                                    currDate.add(1, 'h');
-                                }
-                                break;
-                            case 1:
-                                currDate.minute(slot.minute).second(slot.second);
-                                if (currDate < moment()) {
-                                    currDate.add(slot.hours, 'h');
-                                }
-                                while (currDate >= start && currDate < end) {
-                                    var endDate = moment(currDate);
-                                    endDate.add(slot.duration, 'm');
-                                    var startDate = moment(currDate);
-                                    events.push({
-                                        title: slot.title,
-                                        start: startDate,
-                                        end: endDate
-                                    });
-
-                                    currDate.add(slot.hours, 'h');
-                                }
-                                break;
-                            case 2:
-                                var interval = moment(currDate).recur(start, end).every(1).day();
-                                processInterval(interval, slot);
-                                break;
-                            case 3:
-                                var interval = moment(currDate).recur(start, end).every(slot.days).day();
-                                processInterval(interval, slot);
-                                break;
-                            case 4:
-                                var interval = moment(currDate).recur(start, end).every(weekNames[slot.dayOfWeek]).dayOfWeek();
-                                processInterval(interval, slot);
-                                break;
-                            case 5:
-                                var interval = moment(currDate).recur(start, end).every(slot.dayOfMonth).dayOfMonth();
-                                processInterval(interval, slot);
-                                break;
-                            case 6:
-                                var startDate = moment([slot.year, slot.month - 1, slot.day, slot.hour, slot.minute, slot.second, 0]);
-                                var endDate = moment(startDate);
-                                endDate.add(slot.duration, 'm');
-                                events.push({
-                                    title: slot.title,
-                                    start: startDate,
-                                    end: endDate
-                                });
-                                break;
-                        }
-                    }
-                });
-
-                callback(events);
-            }
-        },
-        viewRender: function (view, element) {
-            fetchWeatherForecast();
-        }
-    })
 
     $('.time-minute, .time-second').pickatime({
         format: 'i',
@@ -407,28 +265,183 @@ $(document).ready(function () {
         ws.send(JSON.stringify(command));
     });
 
+    initCalendar();
+
     $('.location-typeahead').typeahead({
         delay: 1000,
+        display: 'name',
         source: function (query, process) {
             return $.get('http://api.apixu.com/v1/search.json?key=4e3720d2b7234ec8b8585710191907', { q: query }, function (data) {
-                var cities = [];
-                $.each(data, function (index, element) {
-                    cities.push(element.name);
-                });
-                return process(cities);
+                return process(data);
+            });
+        },
+        afterSelect: function (item) {
+            let settings = updateObjectInLocalStorage("settings", { lat: item.lat, lon: item.lon });
+            $.get(`http://dataservice.accuweather.com/locations/v1/cities/geoposition/search?apikey=${accuWeatherAPIKey}&q=${settings.lat},${settings.lon}&toplevel=true`, function (locationData) {
+                settings.location = $('.location-typeahead').val();
+                settings.lat = locationData.GeoPosition.Latitude; //TODO: need add to firmware
+                settings.lon = locationData.GeoPosition.Longitude; //TODO: need add to firmware
+                settings.elevation = locationData.GeoPosition.Elevation.Metric.Value; //TODO: need add to firmware
+                settings.accuWeatherCityKey = locationData.Key; //TODO: need add to firmware
+                updateObjectInLocalStorage("settings", settings);
+
+                var command = {};
+                command.command = "saveSettings";
+                command.data = settings;
+                console.log(command);
+
+                ws.send(JSON.stringify(command));
+
+                fetchWeatherForecast();
             });
         }
     });
-
-    $(document).on('click', '.save-location-btn', function () {
-        var command = {};
-        command.command = "saveSettings";
-        command.data = {};
-        command.data.location = $('.location-typeahead').val();
-        console.log(command);
-        ws.send(JSON.stringify(command));
-    });
 });
+
+function initCalendar() {
+    calendar = $('#calendar').fullCalendar({
+        themeSystem: 'bootstrap3',
+        slotDuration: "00:15:00",
+        defaultView: 'month',
+        header: {
+            left: 'prev,next,today',
+            center: 'title',
+            right: 'month,agendaWeek,listWeek,agendaDay'
+        },
+        displayEventTime: true,
+        displayEventEnd: true,
+        allDaySlot: false,
+        height: "auto",
+        validRange: {
+            start: moment().format("YYYY-MM-DD")
+        },
+        selectable: true,
+        selectHelper: true,
+        nowIndicator: true,
+        eventLimitText: 'events',
+        eventBackgroundColor: '#3a87ad59',
+        eventBorderColor: '#3a87ad59',
+        eventTextColor: '#000000d6',
+        eventLimit: 1,
+        selectAllow: function (info) {
+            if (calendar.fullCalendar('getView').name === 'month')
+                return false;
+            if (info.start.isBefore(moment()))
+                return false;
+            return true;
+        },
+        select: function (startDate, endDate) {
+            $('#periodicity').val(6).trigger('change');
+            $('#one-time-datetimepicker').data("DateTimePicker").date(startDate);
+            var duration = moment.duration(endDate.diff(startDate)).as('minutes');
+            $('#schedule-mode .duration').val(duration);
+            $("a[href='#schedule-mode']").click();
+        },
+        events: function (start, end, timezone, callback) {
+            var events = [];
+
+            var processInterval = function (interval, slot) {
+                var occurences = interval.all();
+                for (var i = 0; i < occurences.length; i++) {
+                    occurences[i].minute(slot.minute).hour(slot.hour).second(slot.second || 0);
+                    var startDate = moment(occurences[i]);
+                    if (startDate < moment()) {
+                        continue;
+                    }
+                    var endDate = moment(startDate);
+                    endDate.add(slot.duration, 'm');
+                    events.push({
+                        title: slot.title,
+                        start: startDate,
+                        end: endDate
+                    });
+                };
+            };
+
+            if (calendarEvents.slots !== undefined) {
+                $.each(calendarEvents.slots, function (index, slot) {
+                    if (slot.enabled) {
+
+                        var currDate = moment(start);
+                        if (start < moment()) {
+                            currDate = moment();
+                        }
+
+                        switch (slot.periodicity) {
+                            case 0:
+                                currDate.minute(slot.minute).second(slot.second);
+                                if (currDate < moment()) {
+                                    currDate.add(1, 'h');
+                                }
+                                while (currDate >= start && currDate < end) {
+                                    var endDate = moment(currDate);
+                                    endDate.add(slot.duration, 'm');
+                                    var startDate = moment(currDate);
+                                    events.push({
+                                        title: slot.title,
+                                        start: startDate,
+                                        end: endDate
+                                    });
+
+                                    currDate.add(1, 'h');
+                                }
+                                break;
+                            case 1:
+                                currDate.minute(slot.minute).second(slot.second);
+                                if (currDate < moment()) {
+                                    currDate.add(slot.hours, 'h');
+                                }
+                                while (currDate >= start && currDate < end) {
+                                    var endDate = moment(currDate);
+                                    endDate.add(slot.duration, 'm');
+                                    var startDate = moment(currDate);
+                                    events.push({
+                                        title: slot.title,
+                                        start: startDate,
+                                        end: endDate
+                                    });
+
+                                    currDate.add(slot.hours, 'h');
+                                }
+                                break;
+                            case 2:
+                                var interval = moment(currDate).recur(start, end).every(1).day();
+                                processInterval(interval, slot);
+                                break;
+                            case 3:
+                                var interval = moment(currDate).recur(start, end).every(slot.days).day();
+                                processInterval(interval, slot);
+                                break;
+                            case 4:
+                                var interval = moment(currDate).recur(start, end).every(weekNames[slot.dayOfWeek]).dayOfWeek();
+                                processInterval(interval, slot);
+                                break;
+                            case 5:
+                                var interval = moment(currDate).recur(start, end).every(slot.dayOfMonth).dayOfMonth();
+                                processInterval(interval, slot);
+                                break;
+                            case 6:
+                                var startDate = moment([slot.year, slot.month - 1, slot.day, slot.hour, slot.minute, slot.second, 0]);
+                                var endDate = moment(startDate);
+                                endDate.add(slot.duration, 'm');
+                                events.push({
+                                    title: slot.title,
+                                    start: startDate,
+                                    end: endDate
+                                });
+                                break;
+                        }
+                    }
+                });
+
+                callback(events);
+            }
+        },
+        viewRender: function (view, element) {
+            fetchWeatherForecast();
+        }
+    });
+}
 
 function getMomentFromEpoch(epoch) {
     return moment(moment.unix(epoch).utc().format("YYYY-MM-DD HH:mm:ss"));
@@ -723,7 +736,7 @@ function WebSocketBegin(location) {
                         $('#logs-textarea').append(`${msg}\r\n`);
                         break;
                     case 'getSettings':
-                        settings.location = data["location"];
+                        let settings = updateObjectInLocalStorage(data);
 
                         $('.location-typeahead').val(settings.location);
                         break;
@@ -1148,23 +1161,136 @@ function fetchWeatherForecast() {
             weekHeaderElement.append(template);
         });
     };
-    var currentWeather = JSON.parse(localStorage.getItem("currentWeather"));
-    var lastWeatherUpdate = currentWeather ? currentWeather.location.localtime_epoch : moment().unix();
-    var needUpdate = moment().unix() - lastWeatherUpdate > 10800; // Last update more then 3h ago
-    console.log(currentWeather, lastWeatherUpdate, moment().unix(), needUpdate);
-    if (null === currentWeather || needUpdate) {
+
+    let settings = getObjectFromLocalStorage("settings");
+    var apixuForecast = getObjectFromLocalStorage("apixuForecast");
+    var apixuLastWeatherUpdate = !$.isEmptyObject(apixuForecast) ? apixuForecast.lastWeatherUpdate : moment().unix();
+    var apixuLastWeatherLat = !$.isEmptyObject(apixuForecast) ? apixuForecast.location.lat : null;
+    var apixuLastWeatherLon = !$.isEmptyObject(apixuForecast) ? apixuForecast.location.lon : null;
+    // Last update more then 3h ago or location has been changed
+    var locationChanged = Math.abs(apixuLastWeatherLat - settings.lat) > 0.2 || Math.abs(apixuLastWeatherLon - settings.lon) > 0.2;
+    var apixuNeedUpdate = (moment().unix() - apixuLastWeatherUpdate > 10800) || locationChanged;
+    if (settings.location && ($.isEmptyObject(apixuForecast) || apixuNeedUpdate)) {
         $.get(`http://api.apixu.com/v1/forecast.json?key=${weatherAPIKey}&q=${settings.location}&days=10&lang=en`, function (weatherData) {
+            weatherData.lastWeatherUpdate = moment().unix();
             console.log(weatherData);
-            localStorage.setItem("currentWeather", JSON.stringify(weatherData));
-            process(weatherData);
+            apixuForecast = updateObjectInLocalStorage("apixuForecast", weatherData);
         });
-    } else {
-        process(currentWeather);
     }
+    var accuWeatherForecast = getObjectFromLocalStorage("accuWeatherForecast");
+    var accuWeatherLastWeatherUpdate = !$.isEmptyObject(accuWeatherForecast) ? accuWeatherForecast.lastWeatherUpdate : moment().unix();
+    var accuWeatherLastCityKey = !$.isEmptyObject(accuWeatherForecast) ? accuWeatherForecast.lastCityKey : null;
+
+    // Last update more then 3h ago or location has been changed
+    var accuWeatherNeedUpdate = (moment().unix() - accuWeatherLastWeatherUpdate > 10800) || accuWeatherLastCityKey !== settings.accuWeatherCityKey;
+    if (settings.accuWeatherCityKey && ($.isEmptyObject(accuWeatherForecast) || accuWeatherNeedUpdate)) {
+        $.get(`http://dataservice.accuweather.com/forecasts/v1/daily/5day/${settings.accuWeatherCityKey}?apikey=${accuWeatherAPIKey}&details=true&metric=true`, function (weatherData) {
+            weatherData.lastWeatherUpdate = moment().unix();
+            weatherData.lastCityKey = settings.accuWeatherCityKey;
+            console.log(weatherData);
+            updateObjectInLocalStorage("accuWeatherForecast", weatherData);
+        });
+    }
+}
+
+function getObjectFromLocalStorage(name) {
+    return JSON.parse(localStorage.getItem(name)) || {};
+}
+
+function updateObjectInLocalStorage(name, options) {
+    let object = getObjectFromLocalStorage(name);
+    $.extend(object, options);
+    localStorage.setItem(name, JSON.stringify(object));
+
+    return object;
 }
 
 function getSettings() {
     var command = {};
     command.command = "getSettings";
     ws.send(JSON.stringify(command));
+}
+
+function ETo(Tmax, Tmin, RHmax, RHmin, hoursOfSun, pressure, day, month, lat, alt, windSpeed) {
+    //Input parameters
+    var Tmax = 21.5;//Min temperature from weather forecast
+    var Tmin = 12.3;//Max temperature from weather forecast
+    var RHmax = 0.84;//Max humidity from weather station. Need to calculate max per day
+    var RHmin = 0.63;//Min humidity from weather station. Need to calculate min per day
+    var n = hoursOfSun; //Hours of sun from weather forecast
+    var P = pressure; //Atmospheric pressure from weather station. kPa
+    var Y = moment().year();
+    var D = day; //Current day
+    var M = month; //Current month
+    var bissextile = (Y % 4 != 0 || Y % 100 == 0 && Y % 400 != 0) ? false : true;
+    var latitude = lat; // Device latitude. Get from settings
+    var altitude = alt; //Altitude from sealevel. meters
+    var WSkmhOn10m = windSpeed; //Wind speed from weather station. km/h
+
+    //Wind speed transformation   
+    var WSmsOn10m = WSkmhOn10m / 3.6;
+    var u2 = 0.748 * WSmsOn10m; // Wind speed on height 2m in m/s
+
+    //Parameters
+
+    var Tmean = (Tmax + Tmin) / 2;
+    var delta = (4098 * (0.6108 * Math.exp((17.27 * Tmean) / (Tmean + 237.3)))) / Math.pow(Tmean + 237.3, 2);
+    var gamma = 0.000665 * P;
+
+    //Steam pressure deficiency
+    var e0_Tmax = 0.6108 * Math.exp((17.27 * Tmax) / (Tmax + 237.3));
+    var e0_Tmin = 0.6108 * Math.exp((17.27 * Tmin) / (Tmin + 237.3));
+    var es = (e0_Tmax + e0_Tmin) / 2;
+    var ea = ((e0_Tmin * RHmax) + (e0_Tmax * RHmin)) / 2;
+
+    //Radiation    
+    var J = Math.floor(275 * M / 9 - 30 + D) - 2;
+
+    if (M < 3) {
+        J += 2;
+    }
+
+    if (bissextile && M > 2) {
+        J += 1;
+    }
+
+    var dr = 1 + 0.033 * Math.cos(((2 * Math.PI) / 365) * J);
+    var delta_sol = 0.4098 * Math.sin((((2 * Math.PI) / 365) * J) - 1.39);
+
+    var fi = (Math.PI / 180) * latitude;
+    var omega_s = Math.acos((Math.tan(fi) * -1) * Math.tan(delta_sol));
+
+    //Extraterrestrial radiation for the day period
+    var Ra = ((24 * 60) / Math.PI) * 0.0820 * dr * (omega_s * (Math.sin(fi) * Math.sin(delta_sol)) + (Math.cos(fi) * Math.cos(delta_sol)) * Math.sin(omega_s));
+
+    //Daylight hours
+    var N = (24 / Math.PI) * omega_s;
+
+    //Relative sunshine duration
+    var nN = n / N;
+
+    //Sun radiation    
+    var Rs = (0.25 + 0.5 * nN) * Ra;
+
+    //Sun radiation in clear sky
+    var Rso = (0.75 + 0.00002 * altitude) * Ra;
+
+    //Pure shortwave radiation
+    var Rns = (1 - 0.23) * Rs;
+
+    //Pure longwave radiation
+    var sigmaTmax_k4 = 0.000000004903 * Math.pow(Tmax + 273.16, 4);
+    var sigmaTmin_k4 = 0.000000004903 * Math.pow(Tmin + 273.16, 4);
+    var Rnl = ((sigmaTmax_k4 + sigmaTmin_k4) / 2) * (0.34 - 0.14 * Math.sqrt(ea)) * (1.35 * (Rs / Rso) - 0.35);
+
+    //Pure longwave radiation
+    var Rn = Rns - Rnl;
+
+    //Soil heat flux
+    var G = 0; //Ignore for 24-hour period
+
+    //Etalon evapotranspiration
+    var ETo = ((0.408 * (Rn - G)) * delta / (delta + gamma * (1 + 0.34 * u2))) + (900 / (Tmean + 273) * (es - ea) * gamma / delta + gamma * (1 + 0.34 * u2));
+
+    return ETo;
 }
