@@ -1,7 +1,7 @@
 const weekNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thuesday", "Friday", "Saturday"];
 const periodicityList = { "0": "Hourly", "1": "Every X hours", "2": "Daily", "3": "Every X days", "4": "Weekly", "5": "Monthly", "6": "Once", };
-const weatherAPIKey = "4e3720d2b7234ec8b8585710191907";
-const accuWeatherAPIKey = "RaYMmA9InMAKC1LMtLs63llkY2mXem38";
+const accuWeatherAPIKey = "dDDoPqyCFBSiBC2NeODxjvyrruUO4mgu";
+const apixuAPIKey = "4e3720d2b7234ec8b8585710191907";
 const websocketServerLocation = "ws://" + location.hostname + "/ws";
 
 var ws;
@@ -268,33 +268,39 @@ $(document).ready(function () {
     initCalendar();
 
     $('.location-typeahead').typeahead({
-        delay: 1000,
         display: 'name',
+        delay: 1000,
         source: function (query, process) {
             return $.get('http://api.apixu.com/v1/search.json?key=4e3720d2b7234ec8b8585710191907', { q: query }, function (data) {
                 return process(data);
             });
         },
         afterSelect: function (item) {
-            let settings = updateObjectInLocalStorage("settings", { lat: item.lat, lon: item.lon });
+            let settings = updateObjectInLocalStorage("settings", { lat: item.lat, lon: item.lon, location: item.name });
+
             $.get(`http://dataservice.accuweather.com/locations/v1/cities/geoposition/search?apikey=${accuWeatherAPIKey}&q=${settings.lat},${settings.lon}&toplevel=true`, function (locationData) {
-                settings.location = $('.location-typeahead').val();
-                settings.lat = locationData.GeoPosition.Latitude; //TODO: need add to firmware
-                settings.lon = locationData.GeoPosition.Longitude; //TODO: need add to firmware
-                settings.elevation = locationData.GeoPosition.Elevation.Metric.Value; //TODO: need add to firmware
-                settings.accuWeatherCityKey = locationData.Key; //TODO: need add to firmware
-                updateObjectInLocalStorage("settings", settings);
+                settings = updateObjectInLocalStorage("settings", {
+                    elevation: locationData.GeoPosition.Elevation.Metric.Value,
+                    accuWeatherCityKey: locationData.Key
+                });
 
                 var command = {};
                 command.command = "saveSettings";
                 command.data = settings;
-                console.log(command);
 
                 ws.send(JSON.stringify(command));
 
                 fetchWeatherForecast();
             });
         }
+    });
+
+    $(document).on('click', '.forecast-apixu', function() {
+        showForecastFromApixuOnCalendar();
+    });
+
+    $(document).on('click', '.forecast-accuweather', function() {
+        showForecastFromAccuWeatherOnCalendar();
     });
 });
 
@@ -1116,81 +1122,153 @@ function setTime(date) {
 }
 
 function fetchWeatherForecast() {
-    var process = function (weatherData) {
-        $('.weather-block').remove();
-        $.each(weatherData.forecast.forecastday, function (index, forecast) {
-            console.log(forecast);
-            var monthDayElement = $(`td.fc-day[data-date="${forecast.date}"]`);
-            var weekHeaderElement = $(`th.fc-day-header[data-date="${forecast.date}"]`);
-            var dayIcon = forecast.day.condition.icon;
-            var dayIconAlt = forecast.day.condition.text;
-            var tempMin = forecast.day.mintemp_c;
-            var tempMax = forecast.day.maxtemp_c;
-            var totalprecip = forecast.day.totalprecip_mm;
-            var uvIndex = forecast.day.uv;
-            var uvIndexColor = "green";
-            var uvIndexTitle = "No protection required";
-            if (uvIndex >= 3 && uvIndex <= 5) {
-                uvIndexColor = "#f8af44";
-                uvIndexTitle = "Protection required";
-            } else if (uvIndex > 5 && uvIndex <= 7) {
-                uvIndexColor = "#f7941e";
-                uvIndexTitle = "Protection essential";
-            } else if (uvIndex > 7 && uvIndex <= 10) {
-                uvIndexColor = "#de401f";
-                uvIndexTitle = "Need shade";
-            } else if (uvIndex > 11) {
-                uvIndexColor = "#aa5b99";
-                uvIndexTitle = "Can't go outdor";
+    Promise
+        .all([getForecastFromAccuWeather(), getForecastFromApixu()])
+        .then(function (values) {
+            if ($('.forecast-btn').length === 0) {
+                let forecastButtons = `
+                <div class="btn-group forecast-btn" data-toggle="buttons">
+                    <label class="btn btn-sm btn-default forecast-apixu">
+                        <input type="radio" checked> Apixu forecast
+                    </label>
+                    <label class="btn btn-sm btn-default forecast-accuweather">
+                        <input type="radio" checked> AccuWeather forecast
+                    </label>
+                </div>`;
+
+                $(".fc-right").prepend(forecastButtons);                
             }
 
-            var template = `
-            <div class='weather-block'>
-                <img src='${dayIcon}' alt='${dayIconAlt}' title='${dayIconAlt}'/>
-                <div style="margin-left: 6px" class="hidden-xs">
-                    <span title="Min temperature" style="font-size: 12px"><i class="fa fa-temperature-low"/> ${tempMin}°C</span>                    
-                    <span title="Max temperature" style="font-size: 12px"><i class="fa fa-temperature-high"/> ${tempMax}°C</span>
-                </div>
-                <div style="margin-left: 5px" class="hidden-xs">
-                    <span title="UV-index(${uvIndexTitle})" style="font-size: 12px; color: ${uvIndexColor}"><i class="fa fa-sun"/> ${uvIndex}</span>    
-                    <span title="Amount of precipitation" style="font-size: 12px"><i class="fa fa-tint"/> ${totalprecip}mm </span>                    
-                </div>
-            </div>`;
-
-            monthDayElement.append(template);
-            weekHeaderElement.append(template);
+            $('.forecast-apixu').click();
         });
-    };
+}
 
-    let settings = getObjectFromLocalStorage("settings");
-    var apixuForecast = getObjectFromLocalStorage("apixuForecast");
-    var apixuLastWeatherUpdate = !$.isEmptyObject(apixuForecast) ? apixuForecast.lastWeatherUpdate : moment().unix();
-    var apixuLastWeatherLat = !$.isEmptyObject(apixuForecast) ? apixuForecast.location.lat : null;
-    var apixuLastWeatherLon = !$.isEmptyObject(apixuForecast) ? apixuForecast.location.lon : null;
-    // Last update more then 3h ago or location has been changed
-    var locationChanged = Math.abs(apixuLastWeatherLat - settings.lat) > 0.2 || Math.abs(apixuLastWeatherLon - settings.lon) > 0.2;
-    var apixuNeedUpdate = (moment().unix() - apixuLastWeatherUpdate > 10800) || locationChanged;
-    if (settings.location && ($.isEmptyObject(apixuForecast) || apixuNeedUpdate)) {
-        $.get(`http://api.apixu.com/v1/forecast.json?key=${weatherAPIKey}&q=${settings.location}&days=10&lang=en`, function (weatherData) {
-            weatherData.lastWeatherUpdate = moment().unix();
-            console.log(weatherData);
-            apixuForecast = updateObjectInLocalStorage("apixuForecast", weatherData);
-        });
+function getForecastFromAccuWeather() {
+    return new Promise((resolve, reject) => {
+        let settings = getObjectFromLocalStorage("settings");
+        var accuWeatherForecast = getObjectFromLocalStorage("accuWeatherForecast");
+        var accuWeatherLastWeatherUpdate = !$.isEmptyObject(accuWeatherForecast) ? accuWeatherForecast.lastWeatherUpdate : moment().unix();
+        var accuWeatherLastCityKey = !$.isEmptyObject(accuWeatherForecast) ? accuWeatherForecast.lastCityKey : null;
+
+        // Last update more then 6h ago or location has been changed
+        var accuWeatherNeedUpdate = (moment().unix() - accuWeatherLastWeatherUpdate > 21600) || accuWeatherLastCityKey !== settings.accuWeatherCityKey;
+        if (settings.accuWeatherCityKey && ($.isEmptyObject(accuWeatherForecast) || accuWeatherNeedUpdate)) {
+            $.get(`http://dataservice.accuweather.com/forecasts/v1/daily/5day/${settings.accuWeatherCityKey}?apikey=${accuWeatherAPIKey}&details=true&metric=true&language=ru`, function (weatherData) {
+                weatherData.lastWeatherUpdate = moment().unix();
+                weatherData.lastCityKey = settings.accuWeatherCityKey;
+
+                accuWeatherForecast = updateObjectInLocalStorage("accuWeatherForecast", weatherData);
+
+                resolve(accuWeatherForecast);
+            });
+        }
+
+        resolve(accuWeatherForecast);
+    });
+}
+
+function getForecastFromApixu() {
+    return new Promise((resolve, reject) => {
+        let settings = getObjectFromLocalStorage("settings");
+        var apixuForecast = getObjectFromLocalStorage("apixuForecast");
+        var apixuLastWeatherUpdate = !$.isEmptyObject(apixuForecast) ? apixuForecast.lastWeatherUpdate : moment().unix();
+        var apixuLastWeatherLat = !$.isEmptyObject(apixuForecast) ? apixuForecast.location.lat : null;
+        var apixuLastWeatherLon = !$.isEmptyObject(apixuForecast) ? apixuForecast.location.lon : null;
+        // Last update more then 3h ago or location has been changed
+        var locationChanged = Math.abs(apixuLastWeatherLat - settings.lat) > 0.2 || Math.abs(apixuLastWeatherLon - settings.lon) > 0.2;
+        var apixuNeedUpdate = (moment().unix() - apixuLastWeatherUpdate > 10800) || locationChanged;
+        if (settings.location && ($.isEmptyObject(apixuForecast) || apixuNeedUpdate)) {
+            $.get(`http://api.apixu.com/v1/forecast.json?key=${apixuAPIKey}&q=${settings.location}&days=10&lang=en`, function (weatherData) {
+                weatherData.lastWeatherUpdate = moment().unix();
+                apixuForecast = updateObjectInLocalStorage("apixuForecast", weatherData);
+            });
+        }
+
+        resolve(apixuForecast);
+    });
+}
+
+function showForecastDayOnCalendar(date, iconUrl, iconAlt, tempMin, tempMax, uvIndex, totalprecip) {
+    var monthDayElement = $(`td.fc-day[data-date="${date}"]`);
+    var weekHeaderElement = $(`th.fc-day-header[data-date="${date}"]`);
+    var uvIndexColor = "green";
+    var uvIndexTitle = "No protection required";
+    if (uvIndex >= 3 && uvIndex <= 5) {
+        uvIndexColor = "#f8af44";
+        uvIndexTitle = "Protection required";
+    } else if (uvIndex > 5 && uvIndex <= 7) {
+        uvIndexColor = "#f7941e";
+        uvIndexTitle = "Protection essential";
+    } else if (uvIndex > 7 && uvIndex <= 10) {
+        uvIndexColor = "#de401f";
+        uvIndexTitle = "Need shade";
+    } else if (uvIndex > 11) {
+        uvIndexColor = "#aa5b99";
+        uvIndexTitle = "Can't go outdor";
     }
-    var accuWeatherForecast = getObjectFromLocalStorage("accuWeatherForecast");
-    var accuWeatherLastWeatherUpdate = !$.isEmptyObject(accuWeatherForecast) ? accuWeatherForecast.lastWeatherUpdate : moment().unix();
-    var accuWeatherLastCityKey = !$.isEmptyObject(accuWeatherForecast) ? accuWeatherForecast.lastCityKey : null;
 
-    // Last update more then 3h ago or location has been changed
-    var accuWeatherNeedUpdate = (moment().unix() - accuWeatherLastWeatherUpdate > 10800) || accuWeatherLastCityKey !== settings.accuWeatherCityKey;
-    if (settings.accuWeatherCityKey && ($.isEmptyObject(accuWeatherForecast) || accuWeatherNeedUpdate)) {
-        $.get(`http://dataservice.accuweather.com/forecasts/v1/daily/5day/${settings.accuWeatherCityKey}?apikey=${accuWeatherAPIKey}&details=true&metric=true`, function (weatherData) {
-            weatherData.lastWeatherUpdate = moment().unix();
-            weatherData.lastCityKey = settings.accuWeatherCityKey;
-            console.log(weatherData);
-            updateObjectInLocalStorage("accuWeatherForecast", weatherData);
+    let template = `
+    <div class='weather-block'>
+        <img src='${iconUrl}' alt='${iconAlt}' title='${iconAlt}'/>
+        <div style="margin-left: 6px" class="hidden-xs">
+            <span title="Min temperature" style="font-size: 12px"><i class="fa fa-temperature-low"/> ${tempMin}°C</span>                    
+            <span title="Max temperature" style="font-size: 12px"><i class="fa fa-temperature-high"/> ${tempMax}°C</span>
+        </div>
+        <div style="margin-left: 5px" class="hidden-xs">
+            <span title="UV-index(${uvIndexTitle})" style="font-size: 12px; color: ${uvIndexColor}"><i class="fa fa-sun"/> ${uvIndex}</span>    
+            <span title="Amount of precipitation" style="font-size: 12px"><i class="fa fa-tint"/> ${totalprecip}mm </span>                    
+        </div>
+    </div>`;
+
+    monthDayElement.append(template);
+    weekHeaderElement.append(template);
+}
+
+function showForecastFromApixuOnCalendar() {
+
+    getForecastFromApixu().then(function (weatherData) {
+        $('.weather-block').remove();
+        $.each(weatherData.forecast.forecastday, function (index, forecast) {
+            showForecastDayOnCalendar(
+                forecast.date,
+                forecast.day.condition.icon,
+                forecast.day.condition.text,
+                forecast.day.mintemp_c,
+                forecast.day.maxtemp_c,
+                forecast.day.uv,
+                forecast.day.totalprecip_mm
+            );
         });
-    }
+    });
+}
+
+function showForecastFromAccuWeatherOnCalendar() {
+    getForecastFromAccuWeather().then(function (weatherData) {
+        $('.weather-block').remove();
+        $.each(weatherData.DailyForecasts, function (index, forecast) {
+            var date = moment(moment.unix(forecast.EpochDate)).format("YYYY-MM-DD");
+            var iconIndex = forecast.Day.Icon < 10 ? `0${forecast.Day.Icon}` : forecast.Day.Icon;
+            var dayIcon = `https://developer.accuweather.com/sites/default/files/${iconIndex}-s.png`;
+            var totalprecip = forecast.Day.TotalLiquid.Value + forecast.Night.TotalLiquid.Value;
+            var uvIndex = -1;
+            $.each(forecast.AirAndPollen, function (index, el) {
+                if (el.Name === "UVIndex") {
+                    uvIndex = el.Value;
+                    return false;
+                }
+            });
+
+            showForecastDayOnCalendar(
+                date,
+                dayIcon,
+                forecast.Day.LongPhrase,
+                forecast.Temperature.Minimum.Value,
+                forecast.Temperature.Maximum.Value,
+                uvIndex,
+                totalprecip
+            );
+        });
+    });
 }
 
 function getObjectFromLocalStorage(name) {
@@ -1211,12 +1289,8 @@ function getSettings() {
     ws.send(JSON.stringify(command));
 }
 
-function ETo(Tmax, Tmin, RHmax, RHmin, hoursOfSun, pressure, day, month, lat, alt, windSpeed) {
+function ETo(Tmax, Tmin, RHmean, hoursOfSun, pressure, day, month, lat, alt, windSpeed) {
     //Input parameters
-    var Tmax = 21.5;//Min temperature from weather forecast
-    var Tmin = 12.3;//Max temperature from weather forecast
-    var RHmax = 0.84;//Max humidity from weather station. Need to calculate max per day
-    var RHmin = 0.63;//Min humidity from weather station. Need to calculate min per day
     var n = hoursOfSun; //Hours of sun from weather forecast
     var P = pressure; //Atmospheric pressure from weather station. kPa
     var Y = moment().year();
@@ -1241,7 +1315,7 @@ function ETo(Tmax, Tmin, RHmax, RHmin, hoursOfSun, pressure, day, month, lat, al
     var e0_Tmax = 0.6108 * Math.exp((17.27 * Tmax) / (Tmax + 237.3));
     var e0_Tmin = 0.6108 * Math.exp((17.27 * Tmin) / (Tmin + 237.3));
     var es = (e0_Tmax + e0_Tmin) / 2;
-    var ea = ((e0_Tmin * RHmax) + (e0_Tmax * RHmin)) / 2;
+    var ea = RHmean * ((e0_Tmax + e0_Tmin) / 2);
 
     //Radiation    
     var J = Math.floor(275 * M / 9 - 30 + D) - 2;

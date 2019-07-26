@@ -196,15 +196,20 @@
         .fc-more {
             margin: 0 !important;
         }
+
         .fc-day .weather-block {
             top: 22px;
             position: relative;
         }
+
         .fc-day-header .weather-block {
             font-weight: normal;
         }
-        .fc-day .weather-block img{
-            max-width: 50px;
+
+        .fc-day .weather-block img {
+            min-width: 50px;
+            min-height: 50px;
+            max-height: 50px;
         }
     </style>
 
@@ -222,8 +227,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.10.0/fullcalendar.min.js"></script>
     <script
         src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datetimepicker/4.17.47/js/bootstrap-datetimepicker.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-3-typeahead/4.0.2/bootstrap3-typeahead.min.js"
-        integrity="sha256-LOnFraxKlOhESwdU/dX+K0GArwymUDups0czPWLEg4E=" crossorigin="anonymous"></script>
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-3-typeahead/4.0.2/bootstrap3-typeahead.min.js"></script>
     <script type="text/javascript" src="app.js"></script>
 </head>
 
@@ -793,7 +798,8 @@
                             <div class="col-md-6 col-md-offset-3">
                                 <h4>Location</h4>
                                 <div class="col-md-12">
-                                    <input type="text" class="location-typeahead form-control" data-provide="typeahead" style="margin-bottom: 20px">
+                                    <input type="text" class="location-typeahead form-control" data-provide="typeahead"
+                                        style="margin-bottom: 20px">
                                 </div>
                             </div>
                             <div class="col-md-6 col-md-offset-3">
@@ -810,7 +816,8 @@
                                         <tbody>
                                         </tbody>
                                     </table>
-                                    <button class="btn btn-sm btn-success save-channel-names-btn">Save channel names</button>
+                                    <button class="btn btn-sm btn-success save-channel-names-btn">Save channel
+                                        names</button>
                                 </div>
                             </div>
                         </div>
