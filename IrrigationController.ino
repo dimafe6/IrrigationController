@@ -50,6 +50,10 @@ struct WeatherData
 struct Settings
 {
   String location;
+  String accuWeatherCityKey;
+  int elevation;
+  float lat;
+  float lon;
 } settings;
 
 volatile unsigned long HC12LastUpdate = 0;
@@ -312,6 +316,10 @@ void loadSettings()
     settingsFile.close();
 
     settings.location = settingsObject["location"].as<String>();
+    settings.accuWeatherCityKey = settingsObject["accuWeatherCityKey"].as<String>();
+    settings.elevation = settingsObject["elevation"].as<int>();
+    settings.lat = settingsObject["lat"].as<float>();
+    settings.lon = settingsObject["lon"].as<float>();
   }
 }
 
@@ -323,6 +331,10 @@ void sendSettingsToWS()
   JsonObject data = settingsDoc.createNestedObject("data");
 
   data["location"] = settings.location;
+  data["accuWeatherCityKey"] = settings.accuWeatherCityKey;
+  data["elevation"] = settings.elevation;
+  data["lat"] = settings.lat;
+  data["lon"] = settings.lon;
 
   sendDocumentToWs(settingsDoc);
 }
