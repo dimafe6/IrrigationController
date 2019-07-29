@@ -295,11 +295,11 @@ $(document).ready(function () {
         }
     });
 
-    $(document).on('click', '.forecast-apixu', function() {
+    $(document).on('click', '.forecast-apixu', function () {
         showForecastFromApixuOnCalendar();
     });
 
-    $(document).on('click', '.forecast-accuweather', function() {
+    $(document).on('click', '.forecast-accuweather', function () {
         showForecastFromAccuWeatherOnCalendar();
     });
 });
@@ -1122,11 +1122,13 @@ function setTime(date) {
 }
 
 function fetchWeatherForecast() {
-    Promise
-        .all([getForecastFromAccuWeather(), getForecastFromApixu()])
-        .then(function (values) {
-            if ($('.forecast-btn').length === 0) {
-                let forecastButtons = `
+    return new Promise((resolve, reject) => {
+        return Promise
+            .all([getForecastFromAccuWeather(), getForecastFromApixu()])
+            .then(function (values) {
+                console.log(values);
+                if ($('.forecast-btn').length === 0) {
+                    let forecastButtons = `
                 <div class="btn-group forecast-btn" data-toggle="buttons">
                     <label class="btn btn-sm btn-default forecast-apixu">
                         <input type="radio" checked> Apixu forecast
@@ -1136,11 +1138,14 @@ function fetchWeatherForecast() {
                     </label>
                 </div>`;
 
-                $(".fc-right").prepend(forecastButtons);                
-            }
+                    $(".fc-right").prepend(forecastButtons);
+                }
 
-            $('.forecast-apixu').click();
-        });
+                $('.forecast-apixu').click();
+
+                resolve(values);
+            });
+    });
 }
 
 function getForecastFromAccuWeather() {
@@ -1153,17 +1158,19 @@ function getForecastFromAccuWeather() {
         // Last update more then 6h ago or location has been changed
         var accuWeatherNeedUpdate = (moment().unix() - accuWeatherLastWeatherUpdate > 21600) || accuWeatherLastCityKey !== settings.accuWeatherCityKey;
         if (settings.accuWeatherCityKey && ($.isEmptyObject(accuWeatherForecast) || accuWeatherNeedUpdate)) {
-            $.get(`http://dataservice.accuweather.com/forecasts/v1/daily/5day/${settings.accuWeatherCityKey}?apikey=${accuWeatherAPIKey}&details=true&metric=true&language=ru`, function (weatherData) {
-                weatherData.lastWeatherUpdate = moment().unix();
-                weatherData.lastCityKey = settings.accuWeatherCityKey;
+            $.get(`http://dataservice.accuweather.com/forecasts/v1/daily/5day/${settings.accuWeatherCityKey}?apikey=${accuWeatherAPIKey}&details=true&metric=true&language=ru`)
+                .done(function (weatherData) {
+                    weatherData.lastWeatherUpdate = moment().unix();
+                    weatherData.lastCityKey = settings.accuWeatherCityKey;
 
-                accuWeatherForecast = updateObjectInLocalStorage("accuWeatherForecast", weatherData);
+                    accuWeatherForecast = updateObjectInLocalStorage("accuWeatherForecast", weatherData);
 
-                resolve(accuWeatherForecast);
-            });
+                    resolve(accuWeatherForecast);
+                })
+                .fail(reject);
+        } else {
+            resolve(accuWeatherForecast);
         }
-
-        resolve(accuWeatherForecast);
     });
 }
 
@@ -1178,17 +1185,21 @@ function getForecastFromApixu() {
         var locationChanged = Math.abs(apixuLastWeatherLat - settings.lat) > 0.2 || Math.abs(apixuLastWeatherLon - settings.lon) > 0.2;
         var apixuNeedUpdate = (moment().unix() - apixuLastWeatherUpdate > 10800) || locationChanged;
         if (settings.location && ($.isEmptyObject(apixuForecast) || apixuNeedUpdate)) {
-            $.get(`http://api.apixu.com/v1/forecast.json?key=${apixuAPIKey}&q=${settings.location}&days=10&lang=en`, function (weatherData) {
-                weatherData.lastWeatherUpdate = moment().unix();
-                apixuForecast = updateObjectInLocalStorage("apixuForecast", weatherData);
-            });
-        }
+            $.get(`http://api.apixu.com/v1/forecast.json?key=${apixuAPIKey}&q=${settings.location}&days=10&lang=en`)
+                .done(function (weatherData) {
+                    weatherData.lastWeatherUpdate = moment().unix();
+                    apixuForecast = updateObjectInLocalStorage("apixuForecast", weatherData);
 
-        resolve(apixuForecast);
+                    resolve(apixuForecast);
+                })
+                .fail(reject);
+        } else {
+            resolve(apixuForecast);
+        }
     });
 }
 
-function showForecastDayOnCalendar(date, iconUrl, iconAlt, tempMin, tempMax, uvIndex, totalprecip) {
+function showForecastDayOnCalendar(date, iconUrl, iconAlt, tempMin, tempMax, uvIndex, totalprecip, eto = null) {
     var monthDayElement = $(`td.fc-day[data-date="${date}"]`);
     var weekHeaderElement = $(`th.fc-day-header[data-date="${date}"]`);
     var uvIndexColor = "green";
@@ -1207,6 +1218,12 @@ function showForecastDayOnCalendar(date, iconUrl, iconAlt, tempMin, tempMax, uvI
         uvIndexTitle = "Can't go outdor";
     }
 
+    if (null === eto) {
+        eto = `<span title="Evapotranspiration" style="display: none"></span>`;
+    } else {
+        eto = `<span title="Evapotranspiration" style="font-size: 12px">ETo ${eto}mm </span>`;
+    }
+
     let template = `
     <div class='weather-block'>
         <img src='${iconUrl}' alt='${iconAlt}' title='${iconAlt}'/>
@@ -1217,6 +1234,7 @@ function showForecastDayOnCalendar(date, iconUrl, iconAlt, tempMin, tempMax, uvI
         <div style="margin-left: 5px" class="hidden-xs">
             <span title="UV-index(${uvIndexTitle})" style="font-size: 12px; color: ${uvIndexColor}"><i class="fa fa-sun"/> ${uvIndex}</span>    
             <span title="Amount of precipitation" style="font-size: 12px"><i class="fa fa-tint"/> ${totalprecip}mm </span>                    
+            ${eto}
         </div>
     </div>`;
 
@@ -1225,49 +1243,99 @@ function showForecastDayOnCalendar(date, iconUrl, iconAlt, tempMin, tempMax, uvI
 }
 
 function showForecastFromApixuOnCalendar() {
+    Promise
+        .all([getForecastFromAccuWeather(), getForecastFromApixu()])
+        .then(function (weatherData) {
+            var accuWeatherForecast = weatherData[0];
+            var apixuForecast = weatherData[1];
+            let settings = getObjectFromLocalStorage("settings");
+            if (!$.isEmptyObject(apixuForecast)) {
+                $('.weather-block').remove();
+                $.each(apixuForecast.forecast.forecastday, function (index, forecast) {
+                    var hoursOfSun = null;
 
-    getForecastFromApixu().then(function (weatherData) {
-        $('.weather-block').remove();
-        $.each(weatherData.forecast.forecastday, function (index, forecast) {
-            showForecastDayOnCalendar(
-                forecast.date,
-                forecast.day.condition.icon,
-                forecast.day.condition.text,
-                forecast.day.mintemp_c,
-                forecast.day.maxtemp_c,
-                forecast.day.uv,
-                forecast.day.totalprecip_mm
-            );
+                    $.each(accuWeatherForecast.DailyForecasts, function(index, accuWeatherForecastDay){
+                        if(moment.unix(accuWeatherForecastDay.EpochDate).format("YYYY-MM-DD") === moment(forecast.date).format("YYYY-MM-DD")) {
+                            hoursOfSun = parseFloat(accuWeatherForecastDay.HoursOfSun);
+                            return false;
+                        }
+                    });
+
+                    var eto = ETo(
+                        parseFloat(forecast.day.maxtemp_c),
+                        parseFloat(forecast.day.mintemp_c),
+                        null,
+                        null,
+                        parseFloat(forecast.day.avghumidity / 100),
+                        hoursOfSun,
+                        null,
+                        moment().date(),
+                        moment().month() -1,
+                        settings.lat,
+                        settings.elevation,
+                        parseFloat(forecast.day.maxwind_kph)
+                    );
+
+                    showForecastDayOnCalendar(
+                        forecast.date,
+                        forecast.day.condition.icon,
+                        forecast.day.condition.text,
+                        forecast.day.mintemp_c,
+                        forecast.day.maxtemp_c,
+                        forecast.day.uv,
+                        forecast.day.totalprecip_mm,
+                        eto
+                    );
+                });
+            }
         });
-    });
 }
 
 function showForecastFromAccuWeatherOnCalendar() {
     getForecastFromAccuWeather().then(function (weatherData) {
-        $('.weather-block').remove();
-        $.each(weatherData.DailyForecasts, function (index, forecast) {
-            var date = moment(moment.unix(forecast.EpochDate)).format("YYYY-MM-DD");
-            var iconIndex = forecast.Day.Icon < 10 ? `0${forecast.Day.Icon}` : forecast.Day.Icon;
-            var dayIcon = `https://developer.accuweather.com/sites/default/files/${iconIndex}-s.png`;
-            var totalprecip = forecast.Day.TotalLiquid.Value + forecast.Night.TotalLiquid.Value;
-            var uvIndex = -1;
-            $.each(forecast.AirAndPollen, function (index, el) {
-                if (el.Name === "UVIndex") {
-                    uvIndex = el.Value;
-                    return false;
-                }
-            });
+        if (!$.isEmptyObject(weatherData)) {
+            $('.weather-block').remove();
+            let settings = getObjectFromLocalStorage("settings");
+            $.each(weatherData.DailyForecasts, function (index, forecast) {
+                var date = moment(moment.unix(forecast.EpochDate)).format("YYYY-MM-DD");
+                var iconIndex = forecast.Day.Icon < 10 ? `0${forecast.Day.Icon}` : forecast.Day.Icon;
+                var dayIcon = `https://developer.accuweather.com/sites/default/files/${iconIndex}-s.png`;
+                var totalprecip = forecast.Day.TotalLiquid.Value + forecast.Night.TotalLiquid.Value;
+                var uvIndex = -1;
+                $.each(forecast.AirAndPollen, function (index, el) {
+                    if (el.Name === "UVIndex") {
+                        uvIndex = el.Value;
+                        return false;
+                    }
+                });
 
-            showForecastDayOnCalendar(
-                date,
-                dayIcon,
-                forecast.Day.LongPhrase,
-                forecast.Temperature.Minimum.Value,
-                forecast.Temperature.Maximum.Value,
-                uvIndex,
-                totalprecip
-            );
-        });
+                var eto = ETo(
+                    parseFloat(forecast.Temperature.Maximum.Value),
+                    parseFloat(forecast.Temperature.Minimum.Value),
+                    null,
+                    null,
+                    null,
+                    parseFloat(forecast.HoursOfSun),
+                    null,
+                    moment().date(),
+                    moment().month() -1,
+                    settings.lat,
+                    settings.elevation,
+                    parseFloat(forecast.Day.Wind.Speed.Value)
+                );
+
+                showForecastDayOnCalendar(
+                    date,
+                    dayIcon,
+                    forecast.Day.LongPhrase,
+                    forecast.Temperature.Minimum.Value,
+                    forecast.Temperature.Maximum.Value,
+                    uvIndex,
+                    totalprecip,
+                    eto
+                );
+            });
+        }
     });
 }
 
@@ -1289,7 +1357,7 @@ function getSettings() {
     ws.send(JSON.stringify(command));
 }
 
-function ETo(Tmax, Tmin, RHmean, hoursOfSun, pressure, day, month, lat, alt, windSpeed) {
+function ETo(Tmax, Tmin, RHmin, RHmax, RHmean, hoursOfSun, pressure, day, month, lat, alt, windSpeed) {
     //Input parameters
     var n = hoursOfSun; //Hours of sun from weather forecast
     var P = pressure; //Atmospheric pressure from weather station. kPa
@@ -1307,6 +1375,11 @@ function ETo(Tmax, Tmin, RHmean, hoursOfSun, pressure, day, month, lat, alt, win
 
     //Parameters
 
+    if (null === P && null !== alt) {
+        P = 101.3 * Math.pow(((293 - 0.0065 * alt) / 293), 5.26);
+        console.log(P);
+    }
+
     var Tmean = (Tmax + Tmin) / 2;
     var delta = (4098 * (0.6108 * Math.exp((17.27 * Tmean) / (Tmean + 237.3)))) / Math.pow(Tmean + 237.3, 2);
     var gamma = 0.000665 * P;
@@ -1315,7 +1388,13 @@ function ETo(Tmax, Tmin, RHmean, hoursOfSun, pressure, day, month, lat, alt, win
     var e0_Tmax = 0.6108 * Math.exp((17.27 * Tmax) / (Tmax + 237.3));
     var e0_Tmin = 0.6108 * Math.exp((17.27 * Tmin) / (Tmin + 237.3));
     var es = (e0_Tmax + e0_Tmin) / 2;
-    var ea = RHmean * ((e0_Tmax + e0_Tmin) / 2);
+    if (null !== RHmin && null !== RHmax) {
+        var ea = ((e0_Tmin * RHmax) + (e0_Tmax * RHmin)) / 2;
+    } else if (null !== RHmean) {
+        var ea = RHmean * ((e0_Tmax + e0_Tmin) / 2);
+    } else if (null === RHmin && null === RHmax && null === RHmean) {
+        var ea = e0_Tmin;
+    }
 
     //Radiation    
     var J = Math.floor(275 * M / 9 - 30 + D) - 2;
@@ -1366,5 +1445,5 @@ function ETo(Tmax, Tmin, RHmean, hoursOfSun, pressure, day, month, lat, alt, win
     //Etalon evapotranspiration
     var ETo = ((0.408 * (Rn - G)) * delta / (delta + gamma * (1 + 0.34 * u2))) + (900 / (Tmean + 273) * (es - ea) * gamma / delta + gamma * (1 + 0.34 * u2));
 
-    return ETo;
+    return Math.round(ETo*100) / 100;
 }
