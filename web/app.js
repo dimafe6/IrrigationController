@@ -1,20 +1,23 @@
 const weekNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thuesday", "Friday", "Saturday"];
 const periodicityList = { "0": "Hourly", "1": "Every X hours", "2": "Daily", "3": "Every X days", "4": "Weekly", "5": "Monthly", "6": "Once", };
 const accuWeatherAPIKey = "dDDoPqyCFBSiBC2NeODxjvyrruUO4mgu";
+const accuWeatherApiDomain = 'http://dataservice.accuweather.com';
 const apixuAPIKey = "4e3720d2b7234ec8b8585710191907";
-const websocketServerLocation = "ws://" + location.hostname + "/ws";
+const apixuApiDomain = 'http://api.apixu.com/v1';
+const websocketServerLocation = `ws://${location.hostname}/ws`;
+const manualIrrigationEventId = 25;
 
-var ws;
-var calendarEvents = {};
-var availableSlots;
-var calendar;
-var currentTime = null;
+let ws;
+let calendarEvents = {};
+let availableSlots;
+let calendar;
+let currentTime = null;
 
-window.addEventListener('beforeunload', (event) => {
-    ws.close();
-});
+let compareOccurences = (a, b) => (a.from < b.from ? 1 : -1);
 
-$(document).ready(function () {
+window.addEventListener('beforeunload', (event) => ws.close());
+
+$(document).ready(() => {
     $('#datetimepicker').datetimepicker({
         inline: true,
         sideBySide: true,
@@ -28,12 +31,9 @@ $(document).ready(function () {
         minDate: new Date()
     });
 
-    $(document).on('click', '.save-time-btn', function () {
-        var date = $('#datetimepicker').data("DateTimePicker").viewDate();
-        setTime(date);
-    });
+    $(document).on('click', '.save-time-btn', () => setTime($('#datetimepicker').data("DateTimePicker").viewDate()));
 
-    setInterval(function () {
+    setInterval(() => {
         if (null !== currentTime) {
             currentTime.add(1, 'seconds');
             $('#current-time').text(currentTime.format('ddd, YYYY-MM-DD HH:mm:ss'));
@@ -50,8 +50,8 @@ $(document).ready(function () {
 
     WebSocketBegin(websocketServerLocation);
 
-    $('a[href="#calendar-page"]').click(function () {
-        setTimeout(function () {
+    $('a[href="#calendar-page"]').click(() => {
+        setTimeout(() => {
             $('#calendar').fullCalendar('refetchEvents');
             $('#calendar').fullCalendar('rerenderEvents');
         },
@@ -96,65 +96,61 @@ $(document).ready(function () {
         $(this).pickatime('picker').set('select', 0);
     });
 
-    $('a[data-toggle="tab"]').click(function () {
+    $('a[data-toggle="tab"]').click(() => {
         if ($('.navbar-collapse.collapse.in').length) {
             $('button.navbar-toggle').click();
         }
     });
 
-    $('#periodicity').change(function () {
-        switch (parseInt($(this).val())) {
-            case 0:
-                $('.period-block ').hide();
-                $('.period-block.hourly').show();
-                break;
-            case 1:
-                $('.period-block ').hide();
-                $('.period-block.every-x-hours').show();
-                break;
-            case 2:
-                $('.period-block ').hide();
-                $('.period-block.daily').show();
-                break;
-            case 3:
-                $('.period-block ').hide();
-                $('.period-block.every-x-days').show();
-                break;
-            case 4:
-                $('.period-block ').hide();
-                $('.period-block.weekly').show();
-                break;
-            case 5:
-                $('.period-block ').hide();
-                $('.period-block.monthly').show();
-                break;
-            case 6:
-                $('.period-block ').hide();
-                $('.period-block.one-time').show();
-                break;
-            default:
-                $('.period-block ').hide();
-                break;
-        }
+    $('#periodicity')
+        .change(function () {
+            switch (parseInt($(this).val())) {
+                case 0:
+                    $('.period-block ').hide();
+                    $('.period-block.hourly').show();
+                    break;
+                case 1:
+                    $('.period-block ').hide();
+                    $('.period-block.every-x-hours').show();
+                    break;
+                case 2:
+                    $('.period-block ').hide();
+                    $('.period-block.daily').show();
+                    break;
+                case 3:
+                    $('.period-block ').hide();
+                    $('.period-block.every-x-days').show();
+                    break;
+                case 4:
+                    $('.period-block ').hide();
+                    $('.period-block.weekly').show();
+                    break;
+                case 5:
+                    $('.period-block ').hide();
+                    $('.period-block.monthly').show();
+                    break;
+                case 6:
+                    $('.period-block ').hide();
+                    $('.period-block.one-time').show();
+                    break;
+                default:
+                    $('.period-block ').hide();
+                    break;
+            }
 
-        getSchedule();
+            getSchedule();
+        })
+        .change();
+
+    $('#schedule-mode-zones,.time-days,#weekdays-selector input,#schedule-mode .duration').change(getSchedule);
+
+    $(document).on('click', '.event-action-remove', function () {
+        removeEvent(parseInt($(this).closest('tr').find('td:first').text()));
     });
 
-    $('#periodicity').change();
-
-    $('#schedule-mode-zones').change(getSchedule);
-    $('.time-days').change(getSchedule);
-    $('#weekdays-selector input').change(getSchedule);
-    $('#schedule-mode .duration').change(getSchedule);
-
-    $(document).on('click', '.event-actions .action-remove', function () {
-        var evId = parseInt($(this).closest('tr').find('td:first').text());
-        removeEvent(evId);
-    });
-
-    $(document).on('click', '.event-actions .action-edit', function () {
-        var evId = parseInt($(this).closest('tr').find('td:first').text());
-        var slot = getSlotById(evId);
+    $(document).on('click', '.event-action-edit', function () {
+        let evId = parseInt($(this).closest('tr').find('td:first').text());
+        let slot = getSlotById(evId);
         if (null == slot) {
             return;
         }
@@ -165,77 +161,68 @@ $(document).ready(function () {
         $('html, body').animate({
             scrollTop: $("#add-event-header").offset().top
         }, 500);
-        $('#events-list tbody td.evId[data-evid="' + evId + '"]').closest('tr').addClass('bg-warning');
-        $('#add-event-header').text('Edit event #' + evId);
+        $(`#events-list tbody td.evId[data-evid="${evId}"]`).closest('tr').addClass('bg-warning');
+        $('#add-event-header').text(`Edit event #${evId}`);
         $('#schedule-mode .add-schedule').hide();
         $('#schedule-mode .save-schedule').show();
         $('#schedule-mode .cancel-edit-schedule').show();
         $('#schedule-mode .event-title').val(slot.title);
         $('#schedule-mode-zones option:selected').removeAttr('selected');
-        $.each(slot.channels, function (index, value) {
+
+        for (let value of slot.channels) {
             $(`#schedule-mode-zones option:eq(${value})`).attr('selected', true);
-        });
+        }
 
         $('#periodicity').val(slot.periodicity).trigger('change');
         $('#schedule-mode .duration').val(slot.duration).trigger('change');
 
         switch (slot.periodicity) {
             case 0:
-                var $periodBlock = $('.period-block.hourly');
-                $periodBlock.find('.time-minute').pickatime().pickatime('picker').set('select', slot.minute);
-                $periodBlock.find('.time-second').pickatime().pickatime('picker').set('select', slot.second);
+                $('.period-block.hourly').find('.time-minute').pickatime().pickatime('picker').set('select', slot.minute);
+                $('.period-block.hourly').find('.time-second').pickatime().pickatime('picker').set('select', slot.second);
                 break;
             case 1:
-                var $periodBlock = $('.period-block.every-x-hours');
-                $periodBlock.find('.time-hours').pickatime().pickatime('picker').set('select', [slot.hours, 0]);
-                $periodBlock.find('.time-minute').pickatime().pickatime('picker').set('select', slot.minute);
-                $periodBlock.find('.time-second').pickatime().pickatime('picker').set('select', slot.second);
+                $('.period-block.every-x-hours').find('.time-hours').pickatime().pickatime('picker').set('select', [slot.hours, 0]);
+                $('.period-block.every-x-hours').find('.time-minute').pickatime().pickatime('picker').set('select', slot.minute);
+                $('.period-block.every-x-hours').find('.time-second').pickatime().pickatime('picker').set('select', slot.second);
                 break;
             case 2:
-                var $periodBlock = $('.period-block.daily');
-                $periodBlock.find('.time-hour-minute').pickatime().pickatime('picker').set('select', [slot.hour, slot.minute]);
+                $('.period-block.daily').find('.time-hour-minute').pickatime().pickatime('picker').set('select', [slot.hour, slot.minute]);
                 break;
             case 3:
-                var $periodBlock = $('.period-block.every-x-days');
-                $periodBlock.find('.time-days').val(slot.days).trigger('change');
-                $periodBlock.find('.time-hour-minute').pickatime().pickatime('picker').set('select', [slot.hour, slot.minute]);
+                $('.period-block.every-x-days').find('.time-days').val(slot.days).trigger('change');
+                $('.period-block.every-x-days').find('.time-hour-minute').pickatime().pickatime('picker').set('select', [slot.hour, slot.minute]);
                 break;
             case 4:
-                var $periodBlock = $('.period-block.weekly');
-                $periodBlock.find('.time-hour-minute').pickatime().pickatime('picker').set('select', [slot.hour, slot.minute]);
-
+                $('.period-block.weekly').find('.time-hour-minute').pickatime().pickatime('picker').set('select', [slot.hour, slot.minute]);
                 $('#weekdays-selector label').removeClass('active');
-                $('#weekdays-selector input[value="' + slot.dayOfWeek + '"]').parent().addClass('active');
+                $(`#weekdays-selector input[value="${slot.dayOfWeek}"]`).parent().addClass('active');
                 break;
             case 5:
-                var $periodBlock = $('.period-block.monthly');
-                $periodBlock.find('.time-hour-minute').pickatime().pickatime('picker').set('select', [slot.hour, slot.minute]);
-                $periodBlock.find('.time-day-of-month').pickatime().pickatime('picker').set('select', slot.dayOfMonth);
+                $('.period-block.monthly').find('.time-hour-minute').pickatime().pickatime('picker').set('select', [slot.hour, slot.minute]);
+                $('.period-block.monthly').find('.time-day-of-month').pickatime().pickatime('picker').set('select', slot.dayOfMonth);
                 break;
             case 6:
-
-                var date = moment([slot.year, slot.month - 1, slot.day, slot.hour, slot.minute, slot.second, 0]);
-                console.log(date);
-                $('#one-time-datetimepicker').data("DateTimePicker").date(date);
+                $('#one-time-datetimepicker')
+                    .data("DateTimePicker")
+                    .date(moment([slot.year, slot.month - 1, slot.day, slot.hour, slot.minute, slot.second, 0]));
                 break;
         }
     });
 
-    $(document).on('click', '.event-actions .action-disable', function () {
-        var evId = parseInt($(this).closest('tr').find('td:first').text());
-        setEventEnabled(evId, false);
+    $(document).on('click', '.event-action-disable', function () {
+        setEventEnabled(parseInt($(this).closest('tr').find('td:first').text()), false);
     });
 
-    $(document).on('click', '.event-actions .action-enable', function () {
-        var evId = parseInt($(this).closest('tr').find('td:first').text());
-        setEventEnabled(evId, true);
+    $(document).on('click', '.event-action-enable', function () {
+        setEventEnabled(parseInt($(this).closest('tr').find('td:first').text()), true);
     });
 
     $(document).on('click', '.cancel-edit-schedule', cancelEditSchedule);
 
     $(document).on('click', '.running-info .skip-btn', function () {
-        var evId = parseInt($(this).closest('.running-info').attr('data-evid'));
-        if (evId === 25) {
+        let evId = parseInt($(this).closest('.running-info').attr('data-evid'));
+        if (evId === manualIrrigationEventId) {
             if (confirm("Are you sure?")) {
                 stopManualIrrigation();
             }
@@ -244,25 +231,23 @@ $(document).ready(function () {
         }
     });
 
-    $(document).on('click', 'a[href="#schedule-mode"]', function () { getSchedule(); });
+    $(document).on('click', 'a[href="#schedule-mode"]', getSchedule);
 
     $(document).on('click', '.save-channel-names-btn', function () {
         $(this).prop('disabled', true);
         var channelNames = [];
-        $('#channel-names tbody tr').each(function () {
+        $('#channel-names tbody tr').map(function () {
             var id = parseInt($(this).find('td:eq(0)').html());
             var name = $(this).find('td:eq(1) input').val();
             if (name.trim().length <= 0) {
                 alert(`Wrong name "${name}" for channel ${id}`);
                 $(this).find('tr:eq(1) input').focus();
             } else {
-                channelNames.push({ 'id': id, 'name': name });
+                channelNames.push({ id, name });
             }
         });
-        var command = {};
-        command.command = "saveChannelNames";
-        command.data = channelNames;
-        ws.send(JSON.stringify(command));
+
+        sendWSCommand("saveChannelNames", channelNames);
     });
 
     initCalendar();
@@ -270,39 +255,31 @@ $(document).ready(function () {
     $('.location-typeahead').typeahead({
         display: 'name',
         delay: 1000,
-        source: function (query, process) {
-            return $.get('http://api.apixu.com/v1/search.json?key=4e3720d2b7234ec8b8585710191907', { q: query }, function (data) {
-                return process(data);
-            });
-        },
-        afterSelect: function (item) {
+        source: (query, process) => $.get(`${apixuApiDomain}/search.json?key=${apixuAPIKey}`, { q: query }, (data) => process(data)),
+        afterSelect: (item) => {
             let settings = updateObjectInLocalStorage("settings", { lat: item.lat, lon: item.lon, location: item.name });
-
-            $.get(`http://dataservice.accuweather.com/locations/v1/cities/geoposition/search?apikey=${accuWeatherAPIKey}&q=${settings.lat},${settings.lon}&toplevel=true`, function (locationData) {
+            $.get(`${accuWeatherApiDomain}/locations/v1/cities/geoposition/search?apikey=${accuWeatherAPIKey}&q=${settings.lat},${settings.lon}&toplevel=true`, (locationData) => {
                 settings = updateObjectInLocalStorage("settings", {
                     elevation: locationData.GeoPosition.Elevation.Metric.Value,
                     accuWeatherCityKey: locationData.Key
                 });
 
-                var command = {};
-                command.command = "saveSettings";
-                command.data = settings;
-
-                ws.send(JSON.stringify(command));
+                sendWSCommand("saveSettings", settings);
 
                 fetchWeatherForecast();
             });
         }
     });
 
-    $(document).on('click', '.forecast-apixu', function () {
-        showForecastFromApixuOnCalendar();
-    });
+    $(document).on('click', '.forecast-apixu', showForecastFromApixuOnCalendar);
 
-    $(document).on('click', '.forecast-accuweather', function () {
-        showForecastFromAccuWeatherOnCalendar();
-    });
+    $(document).on('click', '.forecast-accuweather', showForecastFromAccuWeatherOnCalendar);
 });
+
+function sendWSCommand(command, data) {
+    console.log(JSON.stringify({ command, data }));
+    ws.send(JSON.stringify({ command, data }));
+}
 
 function initCalendar() {
     calendar = $('#calendar').fullCalendar({
@@ -329,23 +306,21 @@ function initCalendar() {
         eventBorderColor: '#3a87ad59',
         eventTextColor: '#000000d6',
         eventLimit: 1,
-        selectAllow: function (info) {
+        selectAllow: (info) => {
             if (calendar.fullCalendar('getView').name === 'month')
                 return false;
             if (info.start.isBefore(moment()))
                 return false;
             return true;
         },
-        select: function (startDate, endDate) {
+        select: (startDate, endDate) => {
             $('#periodicity').val(6).trigger('change');
             $('#one-time-datetimepicker').data("DateTimePicker").date(startDate);
-            var duration = moment.duration(endDate.diff(startDate)).as('minutes');
-            $('#schedule-mode .duration').val(duration);
+            $('#schedule-mode .duration').val(moment.duration(endDate.diff(startDate)).as('minutes'));
             $("a[href='#schedule-mode']").click();
         },
-        events: function (start, end, timezone, callback) {
+        events: (start, end, timezone, callback) => {
             var events = [];
-
             var processInterval = function (interval, slot) {
                 var occurences = interval.all();
                 for (var i = 0; i < occurences.length; i++) {
@@ -365,7 +340,7 @@ function initCalendar() {
             };
 
             if (calendarEvents.slots !== undefined) {
-                $.each(calendarEvents.slots, function (index, slot) {
+                $.each(calendarEvents.slots, (index, slot) => {
                     if (slot.enabled) {
 
                         var currDate = moment(start);
@@ -501,8 +476,8 @@ function processSlots(data = null) {
             var enabled = null !== slot ? slot.enabled : true;
             enabled = isNaN(enabled) ? true : enabled;
             var tr = '<tr><td colspan="5">Free slot</td></tr>';
-            var disableBtn = `<li role="presentation"><a class="action-disable" role="menuitem"><i class="fa fa-power-off"></i> Disable</a></li>`;
-            var enableBtn = `<li role="presentation"><a class="action-enable" role="menuitem"><i class="fa fa-play text-success"></i> Enable</a></li>`;
+            var disableBtn = `<li role="presentation"><a class="event-action-disable" role="menuitem"><i class="fa fa-power-off"></i> Disable</a></li>`;
+            var enableBtn = `<li role="presentation"><a class="event-action-enable" role="menuitem"><i class="fa fa-play text-success"></i> Enable</a></li>`;
             var enableDisableBtn = enabled ? disableBtn : enableBtn;
 
             var actions = `<td class="event-actions">
@@ -510,10 +485,10 @@ function processSlots(data = null) {
                 <button class="btn btn-xs btn-default dropdown-toggle action-btn" type="button" data-toggle="dropdown">Actions <span class="caret"></span></button>
                 <ul class="dropdown-menu dropdown-menu-right" role="menu">
                 <li role="presentation">
-                <a class="action-edit" role="menuitem"><i class="fa fa-edit text-warning"></i> Edit</a>
+                <a class="event-action-edit" role="menuitem"><i class="fa fa-edit text-warning"></i> Edit</a>
                 </li>
                 <li role="presentation">
-                <a class="action-remove" role="menuitem"><i class="fa fa-trash text-danger"></i> Remove</a>
+                <a class="event-action-remove" role="menuitem"><i class="fa fa-trash text-danger"></i> Remove</a>
                 </li>
                 ${enableDisableBtn}
                 </ul>
@@ -661,7 +636,7 @@ function WebSocketBegin(location) {
                                     $zonePanel.find('.duration').html(moment.duration((finishDate - startDate), "milliseconds").format("D[d] H[h] m[m] s[s]"));
                                     $zonePanel.find('.elapsed-time').html(elapsed);
                                     if (Object.entries(calendarEvents).length > 0) {
-                                        $zonePanel.find('.running-info .event-name').html(occurence.evId === 25 ? "Manual" : calendarEvents.slots[occurence.evId].title);
+                                        $zonePanel.find('.running-info .event-name').html(occurence.evId === manualIrrigationEventId ? "Manual" : calendarEvents.slots[occurence.evId].title);
                                     }
                                     $zonePanel.addClass('active');
                                     $zonePanelBody.find('.running-info').attr("data-evid", occurence.evId);
@@ -765,30 +740,21 @@ function WebSocketBegin(location) {
     }
 }
 
-function compareOccurences(a, b) {
-    return a.from < b.from ? 1 : -1;
-}
-
 function manualIrrigation() {
     if ($('#manual-mode-zones option:selected').length === 0) {
         alert("Select minimum one zone!");
         $('#manual-mode-zones option:first').attr('selected', true);
         return;
     }
-    var command = {};
-    command.command = "manualIrrigation";
-    command.data = {};
-    var checked = []
-    $('#manual-mode-zones option:selected').each(function () {
-        checked.push(parseInt($(this).val()));
-    });
-    command.data.duration = parseInt($('#duration').val());
-    command.data.channels = checked;
 
-    ws.send(JSON.stringify(command));
+    let duration = parseInt($('#duration').val());
+    let channels = $('#manual-mode-zones').val().map((val) => parseInt(val));
+
+    sendWSCommand("manualIrrigation", { duration, channels });
 }
 
 function getSchedule() {
+    console.log('getSchedule');
     var $scheduleBlock = $('#schedule-mode');
     var eventSlot = {};
     var checked = [];
@@ -1158,7 +1124,7 @@ function getForecastFromAccuWeather() {
         // Last update more then 6h ago or location has been changed
         var accuWeatherNeedUpdate = (moment().unix() - accuWeatherLastWeatherUpdate > 21600) || accuWeatherLastCityKey !== settings.accuWeatherCityKey;
         if (settings.accuWeatherCityKey && ($.isEmptyObject(accuWeatherForecast) || accuWeatherNeedUpdate)) {
-            $.get(`http://dataservice.accuweather.com/forecasts/v1/daily/5day/${settings.accuWeatherCityKey}?apikey=${accuWeatherAPIKey}&details=true&metric=true&language=ru`)
+            $.get(`${accuWeatherApiDomain}/forecasts/v1/daily/5day/${settings.accuWeatherCityKey}?apikey=${accuWeatherAPIKey}&details=true&metric=true&language=ru`)
                 .done(function (weatherData) {
                     weatherData.lastWeatherUpdate = moment().unix();
                     weatherData.lastCityKey = settings.accuWeatherCityKey;
@@ -1185,7 +1151,7 @@ function getForecastFromApixu() {
         var locationChanged = Math.abs(apixuLastWeatherLat - settings.lat) > 0.2 || Math.abs(apixuLastWeatherLon - settings.lon) > 0.2;
         var apixuNeedUpdate = (moment().unix() - apixuLastWeatherUpdate > 10800) || locationChanged;
         if (settings.location && ($.isEmptyObject(apixuForecast) || apixuNeedUpdate)) {
-            $.get(`http://api.apixu.com/v1/forecast.json?key=${apixuAPIKey}&q=${settings.location}&days=10&lang=en`)
+            $.get(`${apixuApiDomain}/forecast.json?key=${apixuAPIKey}&q=${settings.location}&days=10&lang=en`)
                 .done(function (weatherData) {
                     weatherData.lastWeatherUpdate = moment().unix();
                     apixuForecast = updateObjectInLocalStorage("apixuForecast", weatherData);
@@ -1221,19 +1187,19 @@ function showForecastDayOnCalendar(date, iconUrl, iconAlt, tempMin, tempMax, uvI
     if (null === eto) {
         eto = `<span title="Evapotranspiration" style="display: none"></span>`;
     } else {
-        eto = `<span title="Evapotranspiration" style="font-size: 12px">ETo ${eto}mm </span>`;
+        eto = `<span title="Evapotranspiration" style="font-size: 11px">ETo ${eto}mm </span>`;
     }
 
     let template = `
     <div class='weather-block'>
         <img src='${iconUrl}' alt='${iconAlt}' title='${iconAlt}'/>
         <div style="margin-left: 6px" class="hidden-xs">
-            <span title="Min temperature" style="font-size: 12px"><i class="fa fa-temperature-low"/> ${tempMin}°C</span>                    
-            <span title="Max temperature" style="font-size: 12px"><i class="fa fa-temperature-high"/> ${tempMax}°C</span>
+            <span title="Min temperature" style="font-size: 11px"><i class="fa fa-temperature-low"/> ${tempMin}°C</span>                    
+            <span title="Max temperature" style="font-size: 11px"><i class="fa fa-temperature-high"/> ${tempMax}°C</span>
         </div>
         <div style="margin-left: 5px" class="hidden-xs">
-            <span title="UV-index(${uvIndexTitle})" style="font-size: 12px; color: ${uvIndexColor}"><i class="fa fa-sun"/> ${uvIndex}</span>    
-            <span title="Amount of precipitation" style="font-size: 12px"><i class="fa fa-tint"/> ${totalprecip}mm </span>                    
+            <span title="UV-index(${uvIndexTitle})" style="font-size: 11px; color: ${uvIndexColor}"><i class="fa fa-sun"/> ${uvIndex}</span>    
+            <span title="Amount of precipitation" style="font-size: 11px"><i class="fa fa-tint"/> ${totalprecip}mm </span>                    
             ${eto}
         </div>
     </div>`;
@@ -1246,16 +1212,15 @@ function showForecastFromApixuOnCalendar() {
     Promise
         .all([getForecastFromAccuWeather(), getForecastFromApixu()])
         .then(function (weatherData) {
-            var accuWeatherForecast = weatherData[0];
-            var apixuForecast = weatherData[1];
+            let [accuWeatherForecast, apixuForecast] = weatherData;
             let settings = getObjectFromLocalStorage("settings");
             if (!$.isEmptyObject(apixuForecast)) {
                 $('.weather-block').remove();
                 $.each(apixuForecast.forecast.forecastday, function (index, forecast) {
                     var hoursOfSun = null;
 
-                    $.each(accuWeatherForecast.DailyForecasts, function(index, accuWeatherForecastDay){
-                        if(moment.unix(accuWeatherForecastDay.EpochDate).format("YYYY-MM-DD") === moment(forecast.date).format("YYYY-MM-DD")) {
+                    $.each(accuWeatherForecast.DailyForecasts, function (index, accuWeatherForecastDay) {
+                        if (moment.unix(accuWeatherForecastDay.EpochDate).format("YYYY-MM-DD") === moment(forecast.date).format("YYYY-MM-DD")) {
                             hoursOfSun = parseFloat(accuWeatherForecastDay.HoursOfSun);
                             return false;
                         }
@@ -1270,7 +1235,7 @@ function showForecastFromApixuOnCalendar() {
                         hoursOfSun,
                         null,
                         moment().date(),
-                        moment().month() -1,
+                        moment().month() - 1,
                         settings.lat,
                         settings.elevation,
                         parseFloat(forecast.day.maxwind_kph)
@@ -1300,7 +1265,7 @@ function showForecastFromAccuWeatherOnCalendar() {
                 var date = moment(moment.unix(forecast.EpochDate)).format("YYYY-MM-DD");
                 var iconIndex = forecast.Day.Icon < 10 ? `0${forecast.Day.Icon}` : forecast.Day.Icon;
                 var dayIcon = `https://developer.accuweather.com/sites/default/files/${iconIndex}-s.png`;
-                var totalprecip = forecast.Day.TotalLiquid.Value + forecast.Night.TotalLiquid.Value;
+                var totalprecip = parseFloat(forecast.Day.TotalLiquid.Value + forecast.Night.TotalLiquid.Value).toFixed(1);
                 var uvIndex = -1;
                 $.each(forecast.AirAndPollen, function (index, el) {
                     if (el.Name === "UVIndex") {
@@ -1318,7 +1283,7 @@ function showForecastFromAccuWeatherOnCalendar() {
                     parseFloat(forecast.HoursOfSun),
                     null,
                     moment().date(),
-                    moment().month() -1,
+                    moment().month() - 1,
                     settings.lat,
                     settings.elevation,
                     parseFloat(forecast.Day.Wind.Speed.Value)
@@ -1445,5 +1410,5 @@ function ETo(Tmax, Tmin, RHmin, RHmax, RHmean, hoursOfSun, pressure, day, month,
     //Etalon evapotranspiration
     var ETo = ((0.408 * (Rn - G)) * delta / (delta + gamma * (1 + 0.34 * u2))) + (900 / (Tmean + 273) * (es - ea) * gamma / delta + gamma * (1 + 0.34 * u2));
 
-    return Math.round(ETo*100) / 100;
+    return parseFloat(ETo).toFixed(1);
 }
