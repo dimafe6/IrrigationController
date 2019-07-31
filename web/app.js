@@ -240,7 +240,7 @@ $(document).ready(() => {
             var id = +$(this).find('td:eq(0)').html();
             var name = $(this).find('td:eq(1) input').val();
             if (name.trim().length <= 0) {
-                alert(`Wrong name "${name}" for channel ${id}`);
+                notify(`Wrong name "${name}" for channel ${id}`, "danger");
                 $(this).find('tr:eq(1) input').focus();
             } else {
                 channelNames.push({ id, name });
@@ -705,7 +705,7 @@ function WebSocketBegin(location) {
 
 function manualIrrigation() {
     if ($('#manual-mode-zones option:selected').length === 0) {
-        alert("Select minimum one zone!");
+        notify("Select minimum one zone!", "danger");
         $('#manual-mode-zones option:first').attr('selected', true);
         return;
     }
@@ -883,12 +883,12 @@ function addOrEditSchedule() {
     let eventSlot = getSchedule();
 
     if (availableSlots <= 0 && isNaN(eventSlot.evId)) {
-        alert("There are no available slots");
+        notify("There are no available slots", "danger");
         return;
     }
 
     if ($('#schedule-mode-zones option:selected').length === 0) {
-        alert("Select minimum one zone!");
+        notify("Select minimum one zone!", "danger");
         $('#schedule-mode-zones option:selected').attr('selected', true);
         return;
     }
@@ -1110,8 +1110,7 @@ function showForecastFromAccuWeatherOnCalendar() {
             let settings = getObjectFromLocalStorage("settings");
             $.each(weatherData.DailyForecasts, (index, forecast) => {
                 let date = moment(moment.unix(forecast.EpochDate)).format("YYYY-MM-DD"),
-                    iconIndex = forecast.Day.Icon < 10 ? `0${forecast.Day.Icon}` : forecast.Day.Icon,
-                    dayIcon = `https://developer.accuweather.com/sites/default/files/${iconIndex}-s.png`,
+                    dayIcon = `https://developer.accuweather.com/sites/default/files/${forecast.Day.Icon.padStart(2,0)}-s.png`,
                     totalprecip = (+forecast.Day.TotalLiquid.Value + forecast.Night.TotalLiquid.Value).toFixed(1),
                     uvIndex = -1;
                 $.each(forecast.AirAndPollen, (index, el) => {
@@ -1177,11 +1176,11 @@ function ETo(Tmax, Tmin, RHmin, RHmax, RHmean, hoursOfSun, pressure, day, month,
 
     //Parameters
     if (!P && alt) {
-        P = 101.3 * Math.pow(((293 - 0.0065 * alt) / 293), 5.26);
+        P = 101.3 * (((293 - 0.0065 * alt) / 293))**5.26;
     }
 
     let Tmean = (Tmax + Tmin) / 2,
-        delta = (4098 * (0.6108 * Math.exp((17.27 * Tmean) / (Tmean + 237.3)))) / Math.pow(Tmean + 237.3, 2),
+        delta = (4098 * (0.6108 * Math.exp((17.27 * Tmean) / (Tmean + 237.3)))) / (Tmean + 237.3)**2,
         gamma = 0.000665 * P;
 
     //Steam pressure deficiency
@@ -1222,12 +1221,12 @@ function ETo(Tmax, Tmin, RHmin, RHmax, RHmean, hoursOfSun, pressure, day, month,
         //Sun radiation    
         Rs = (0.25 + 0.5 * nN) * Ra,
         //Sun radiation in clear sky
-        Rso = (0.75 + 0.00002 * altitude) * Ra,
+        Rso = (0.75 + 2e-5 * altitude) * Ra,
         //Pure shortwave radiation
         Rns = (1 - 0.23) * Rs,
         //Pure longwave radiation
-        sigmaTmax_k4 = 0.000000004903 * Math.pow(Tmax + 273.16, 4),
-        sigmaTmin_k4 = 0.000000004903 * Math.pow(Tmin + 273.16, 4),
+        sigmaTmax_k4 = 4.903e-9 * (Tmax + 273.16)**4,
+        sigmaTmin_k4 = 4.903e-9 * (Tmin + 273.16)**4,
         Rnl = ((sigmaTmax_k4 + sigmaTmin_k4) / 2) * (0.34 - 0.14 * Math.sqrt(ea)) * (1.35 * (Rs / Rso) - 0.35),
         //Pure longwave radiation
         Rn = Rns - Rnl,
