@@ -34,7 +34,7 @@ $(document).ready(() => {
     $(document).on('click', '.save-time-btn', () => setTime($('#datetimepicker').data("DateTimePicker").viewDate()));
 
     setInterval(() => {
-        if (null !== currentTime) {
+        if (currentTime) {
             currentTime.add(1, 'seconds');
             $('#current-time').text(currentTime.format('ddd, YYYY-MM-DD HH:mm:ss'));
         }
@@ -104,7 +104,7 @@ $(document).ready(() => {
 
     $('#periodicity')
         .change(function () {
-            switch (parseInt($(this).val())) {
+            switch (+$(this).val()) {
                 case 0:
                     $('.period-block ').hide();
                     $('.period-block.hourly').show();
@@ -145,13 +145,13 @@ $(document).ready(() => {
     $('#schedule-mode-zones,.time-days,#weekdays-selector input,#schedule-mode .duration').change(getSchedule);
 
     $(document).on('click', '.event-action-remove', function () {
-        removeEvent(parseInt($(this).closest('tr').find('td:first').text()));
+        removeEvent(+$(this).closest('tr').find('td:first').text());
     });
 
     $(document).on('click', '.event-action-edit', function () {
-        let evId = parseInt($(this).closest('tr').find('td:first').text());
+        let evId = +$(this).closest('tr').find('td:first').text();
         let slot = getSlotById(evId);
-        if (null == slot) {
+        if (!slot) {
             return;
         }
 
@@ -211,17 +211,17 @@ $(document).ready(() => {
     });
 
     $(document).on('click', '.event-action-disable', function () {
-        setEventEnabled(parseInt($(this).closest('tr').find('td:first').text()), false);
+        setEventEnabled(+$(this).closest('tr').find('td:first').text(), false);
     });
 
     $(document).on('click', '.event-action-enable', function () {
-        setEventEnabled(parseInt($(this).closest('tr').find('td:first').text()), true);
+        setEventEnabled(+$(this).closest('tr').find('td:first').text(), true);
     });
 
     $(document).on('click', '.cancel-edit-schedule', cancelEditSchedule);
 
     $(document).on('click', '.running-info .skip-btn', function () {
-        let evId = parseInt($(this).closest('.running-info').attr('data-evid'));
+        let evId = +$(this).closest('.running-info').attr('data-evid');
         if (evId === manualIrrigationEventId) {
             if (confirm("Are you sure?")) {
                 stopManualIrrigation();
@@ -237,7 +237,7 @@ $(document).ready(() => {
         $(this).prop('disabled', true);
         var channelNames = [];
         $('#channel-names tbody tr').map(function () {
-            var id = parseInt($(this).find('td:eq(0)').html());
+            var id = +$(this).find('td:eq(0)').html();
             var name = $(this).find('td:eq(1) input').val();
             if (name.trim().length <= 0) {
                 alert(`Wrong name "${name}" for channel ${id}`);
@@ -276,9 +276,9 @@ $(document).ready(() => {
     $(document).on('click', '.forecast-accuweather', showForecastFromAccuWeatherOnCalendar);
 });
 
-function sendWSCommand(command, data) {
-    console.log(JSON.stringify({ command, data }));
-    ws.send(JSON.stringify({ command, data }));
+function sendWSCommand(command, data = null) {
+    console.log(JSON.stringify(!data ? { command } : { command, data }));
+    ws.send(JSON.stringify(!data ? { command } : { command, data }));
 }
 
 function initCalendar() {
@@ -418,9 +418,7 @@ function initCalendar() {
                 callback(events);
             }
         },
-        viewRender: function (view, element) {
-            fetchWeatherForecast();
-        }
+        viewRender: fetchWeatherForecast
     });
 }
 
@@ -439,9 +437,8 @@ function cancelEditSchedule() {
     $('#schedule-mode-zones option:first').attr('selected', true);
     $('#periodicity').val(0).trigger('change');
     $('#schedule-mode .duration').val(5).trigger('change');
-    var $periodBlock = $('.period-block.hourly');
-    $periodBlock.find('.time-minute').pickatime().pickatime('picker').set('select', 0);
-    $periodBlock.find('.time-second').pickatime().pickatime('picker').set('select', 0);
+    $('.period-block.hourly').find('.time-minute').pickatime().pickatime('picker').set('select', 0);
+    $('.period-block.hourly').find('.time-second').pickatime().pickatime('picker').set('select', 0);
 }
 
 function notify(text, type) {
@@ -454,60 +451,60 @@ function getSlotById(evId) {
 
 function processSlots(data = null) {
     calendarEvents = data;
-    var $eventTableBody = $('#events-list tbody');
-    if (null !== calendarEvents) {
+    let $eventTableBody = $('#events-list tbody');
+    if (calendarEvents) {
         $('#calendar').fullCalendar('refetchEvents');
         $('#calendar').fullCalendar('rerenderEvents');
 
-        var slots = calendarEvents.slots;
         $eventTableBody.empty();
-        var total = parseInt(calendarEvents.total);
-        var occupied = parseInt(calendarEvents.occupied);
-        var available = total - occupied;
-        var statisticText = `<b>${occupied}</b> slots out of <b>${total}</b> are occupied. <b>${available}</b> slots available for adding`;
+        let total = +calendarEvents.total;
+        let occupied = +calendarEvents.occupied;
+        let available = total - occupied;
+        let statisticText = `<b>${occupied}</b> slots out of <b>${total}</b> are occupied. <b>${available}</b> slots available for adding`;
         $('#events-statistic').html(statisticText);
 
         availableSlots = available;
 
         $('#schedule-mode .add-schedule').prop('disabled', availableSlots <= 0);
 
-        for (var i = 0; i < total; i++) {
-            var slot = getSlotById(i);
-            var enabled = null !== slot ? slot.enabled : true;
+        for (let i = 0; i < total; i++) {
+            let slot = getSlotById(i);
+            let enabled = slot ? slot.enabled : true;
             enabled = isNaN(enabled) ? true : enabled;
-            var tr = '<tr><td colspan="5">Free slot</td></tr>';
-            var disableBtn = `<li role="presentation"><a class="event-action-disable" role="menuitem"><i class="fa fa-power-off"></i> Disable</a></li>`;
-            var enableBtn = `<li role="presentation"><a class="event-action-enable" role="menuitem"><i class="fa fa-play text-success"></i> Enable</a></li>`;
-            var enableDisableBtn = enabled ? disableBtn : enableBtn;
+            let tr = '<tr><td colspan="5">Free slot</td></tr>';
+            let disableBtn = `<li role="presentation"><a class="event-action-disable" role="menuitem"><i class="fa fa-power-off"></i> Disable</a></li>`;
+            let enableBtn = `<li role="presentation"><a class="event-action-enable" role="menuitem"><i class="fa fa-play text-success"></i> Enable</a></li>`;
+            let enableDisableBtn = enabled ? disableBtn : enableBtn;
 
-            var actions = `<td class="event-actions">
-                <div class="dropdown">
-                <button class="btn btn-xs btn-default dropdown-toggle action-btn" type="button" data-toggle="dropdown">Actions <span class="caret"></span></button>
-                <ul class="dropdown-menu dropdown-menu-right" role="menu">
-                <li role="presentation">
-                <a class="event-action-edit" role="menuitem"><i class="fa fa-edit text-warning"></i> Edit</a>
-                </li>
-                <li role="presentation">
-                <a class="event-action-remove" role="menuitem"><i class="fa fa-trash text-danger"></i> Remove</a>
-                </li>
-                ${enableDisableBtn}
-                </ul>
-                </div>
+            let actions = `
+                <td class="event-actions">
+                    <div class="dropdown">
+                        <button class="btn btn-xs btn-default dropdown-toggle action-btn" type="button" data-toggle="dropdown">Actions <span class="caret"></span></button>
+                        <ul class="dropdown-menu dropdown-menu-right" role="menu">
+                            <li role="presentation">
+                                <a class="event-action-edit" role="menuitem"><i class="fa fa-edit text-warning"></i> Edit</a>
+                            </li>
+                            <li role="presentation">
+                                <a class="event-action-remove" role="menuitem"><i class="fa fa-trash text-danger"></i> Remove</a>
+                            </li>
+                            ${enableDisableBtn}
+                        </ul>
+                    </div>
                 </td>`;
 
-            if (null !== slot) {
-                var duration = moment.duration(slot.duration, 'minutes').format('HH[h]:mm[m]');
-                var periodicity = periodicityList[slot.periodicity] || null;
-                var channels = slot.channels ? JSON.stringify(slot.channels) : '';
-                var color = enabled ? "#333" : "#999";
+            if (slot) {
+                let duration = moment.duration(slot.duration, 'minutes').format('HH[h]:mm[m]');
+                let periodicity = periodicityList[slot.periodicity] || null;
+                let channels = slot.channels ? JSON.stringify(slot.channels) : '';
+                let color = enabled ? "#333" : "#999";
 
                 tr = `<tr data-enabled="${enabled}" style="color: ${color}">
-                    <td class="evId" data-evid="${i}">${i}</td>
-                    <td>${periodicity}</td>
-                    <td>${duration}</td>
-                    <td>${channels}</td>
-                    ${actions}
-                    </tr>`;
+                        <td class="evId" data-evid="${i}">${i}</td>
+                        <td>${periodicity}</td>
+                        <td>${duration}</td>
+                        <td>${channels}</td>
+                        ${actions}
+                     </tr>`;
             }
 
             $eventTableBody.append(tr);
@@ -527,12 +524,12 @@ function WebSocketBegin(location) {
         };
 
         ws.onmessage = function (evt) {
-            var jsonObject = JSON.parse(evt.data);
+            let jsonObject = JSON.parse(evt.data);
 
             console.log(jsonObject);
-            var command = jsonObject.command || null;
-            if (null !== command) {
-                var data = jsonObject.data || null;
+            let command = jsonObject.command || null;
+            if (command) {
+                let data = jsonObject.data || null;
                 var msg = jsonObject.msg || null;
                 switch (command) {
                     case 'stopManualIrrigation':
@@ -568,43 +565,10 @@ function WebSocketBegin(location) {
                         }
 
                         if (data['heap']) {
-                            var total = Math.floor(parseInt(data['heap']['total']) / 1024);
-                            var free = Math.floor(parseInt(data['heap']['free']) / 1024);
-                            var min = Math.floor(parseInt(data['heap']['min']) / 1024);
-                            var max = Math.floor(parseInt(data['heap']['maxAlloc']) / 1024);
-
-                            $('#mem-total').text(total);
-                            $('#mem-free').text(free);
-                            $('#mem-min').text(min);
-                            $('#mem-max').text(max);
-                        }
-
-                        if (data['gsm']) {
-                            $('#gsm-balance').text(data['gsm']['balance'] + "₴");
-                            var status = "N/A";
-                            switch (data['gsm']['CREGCode']) {
-                                case 0:
-                                    status = "Not registered";
-                                    break;
-                                case 1:
-                                    status = "Registered";
-                                    break;
-                                case 2:
-                                    status = "Search";
-                                    break;
-                                case 3:
-                                    status = "Declined";
-                                    break;
-                                case 4:
-                                    status = "Unknown";
-                                    break;
-                                case 5:
-                                    status = "Roaming";
-                                    break;
-                            }
-                            $('#gsm-status').text(status);
-                            $('#gsm-signal').text(data['gsm']['signal']);
-                            $('#gsm-phone').text(data['gsm']['phone']);
+                            $('#mem-total').text(~~(+data['heap']['total'] / 1024));
+                            $('#mem-free').text(~~(+data['heap']['free'] / 1024));
+                            $('#mem-min').text(~~(+data['heap']['min'] / 1024));
+                            $('#mem-max').text(~~(+data['heap']['maxAlloc'] / 1024));
                         }
 
                         currentTime = moment(data['time']);
@@ -616,21 +580,21 @@ function WebSocketBegin(location) {
                         data.sort(compareOccurences);
                         $('#manual-mode .stop-irrigation-btn').hide();
                         $('#manual-mode .start-irrigation-btn').show();
-                        $.each(data, function (index, occurence) {
+                        $.each(data, (index, occurence) => {
                             if (occurence.isManual) {
                                 $('#manual-mode .stop-irrigation-btn').show();
                                 $('#manual-mode .start-irrigation-btn').hide();
-                                $.each(occurence.channels, function (index, value) {
+                                $.each(occurence.channels, (index, value) => {
                                     $(`#manual-mode-zones option:eq(${index})`).attr('selected', value == 1);
                                 });
                             }
-                            $.each(occurence.channels, function (index, zone) {
-                                var $zonePanelBody = $('div[data-zone="' + index + '"]');
-                                var $zonePanel = $zonePanelBody.closest('.zone-panel');
+                            $.each(occurence.channels, (index, zone) => {
+                                let $zonePanelBody = $('div[data-zone="' + index + '"]');
+                                let $zonePanel = $zonePanelBody.closest('.zone-panel');
                                 if (zone && !$zonePanel.hasClass('active')) {
-                                    var startDate = getMomentFromEpoch(occurence.from);
-                                    var finishDate = getMomentFromEpoch(occurence.to);
-                                    var elapsed = moment.duration(occurence.elapsed, "seconds").format("D[d] H[h] m[m] s[s]");
+                                    let startDate = getMomentFromEpoch(occurence.from);
+                                    let finishDate = getMomentFromEpoch(occurence.to);
+                                    let elapsed = moment.duration(occurence.elapsed, "seconds").format("D[d] H[h] m[m] s[s]");
                                     $zonePanel.find('.start-date').html(startDate.format('YYYY-MM-DD HH:mm:ss'));
                                     $zonePanel.find('.finish-date').html(finishDate.format('YYYY-MM-DD HH:mm:ss'));
                                     $zonePanel.find('.duration').html(moment.duration((finishDate - startDate), "milliseconds").format("D[d] H[h] m[m] s[s]"));
@@ -647,14 +611,14 @@ function WebSocketBegin(location) {
                     case 'nextEvents':
                         $('.next-start-date, .next-finish-date, .next-elapsed, .next-duration, .next-start .event-name').html("N/A");
                         data.sort(compareOccurences);
-                        $.each(data, function (index, occurence) {
-                            $.each(occurence.channels, function (index, zone) {
-                                var $zonePanelBody = $('div[data-zone="' + index + '"]:not(.active)');
-                                var $zonePanel = $zonePanelBody.closest('.zone-panel');
+                        $.each(data, (index, occurence) => {
+                            $.each(occurence.channels, (index, zone) => {
+                                let $zonePanelBody = $('div[data-zone="' + index + '"]:not(.active)');
+                                let $zonePanel = $zonePanelBody.closest('.zone-panel');
                                 if (zone) {
-                                    var startDate = getMomentFromEpoch(occurence.from);
-                                    var finishDate = getMomentFromEpoch(occurence.to);
-                                    var elapsed = moment.duration(occurence.elapsed, "seconds").format("D[d] H[h] m[m] s[s]");
+                                    let startDate = getMomentFromEpoch(occurence.from);
+                                    let finishDate = getMomentFromEpoch(occurence.to);
+                                    let elapsed = moment.duration(occurence.elapsed, "seconds").format("D[d] H[h] m[m] s[s]");
                                     $zonePanel.find('.next-start-date').html(startDate.format('YYYY-MM-DD HH:mm:ss'));
                                     $zonePanel.find('.next-finish-date').html(finishDate.format('YYYY-MM-DD HH:mm:ss'));
                                     $zonePanel.find('.next-duration').html(moment.duration((finishDate - startDate), "milliseconds").format("D[d] H[h] m[m] s[s]"));
@@ -681,7 +645,7 @@ function WebSocketBegin(location) {
                         $('.w-ground-hum').html(`${data.groundHum}`);
                         break;
                     case 'getChannelNames':
-                        var isEdited = $('.save-channel-names-btn').is(":disabled");
+                        let isEdited = $('.save-channel-names-btn').is(":disabled");
 
                         if (isEdited) {
                             notify('Channel names has been saved.', 'success');
@@ -692,17 +656,16 @@ function WebSocketBegin(location) {
                         }
 
                         if ($('#channel-statuses .channel-id').length <= 0) {
-                            var channelsTemplate = $("#dash-channel-status-block div:first").clone();
-                            var channelBlock = $("#channel-statuses");
+                            let channelsTemplate = $("#dash-channel-status-block div:first").clone();
+                            let channelBlock = $("#channel-statuses");
                             $.each(data, function () {
-                                var channelStatus = channelsTemplate.clone();
+                                let channelStatus = channelsTemplate.clone();
                                 channelStatus.find('.channel-id').attr('data-zone', this.id);
                                 channelStatus.find('.channel-name').html(this.name);
                                 channelStatus.show();
-                                channelBlock.append(channelStatus);
+                                $("#channel-statuses").append(channelStatus);
                                 $('#manual-mode-zones, #schedule-mode-zones').append(`<option value="${this.id}">${this.name}</option>`);
-                                var channelNamesBody = $('#channel-names tbody');
-                                channelNamesBody.append(
+                                $('#channel-names tbody').append(
                                     `<tr>
                                         <td style="vertical-align: middle;">${this.id}</td>
                                         <td style="padding: 0;">
@@ -747,117 +710,94 @@ function manualIrrigation() {
         return;
     }
 
-    let duration = parseInt($('#duration').val());
-    let channels = $('#manual-mode-zones').val().map((val) => parseInt(val));
+    let duration = +$('#duration').val();
+    let channels = $('#manual-mode-zones').val().map((val) => +val);
 
     sendWSCommand("manualIrrigation", { duration, channels });
 }
 
 function getSchedule() {
-    console.log('getSchedule');
-    var $scheduleBlock = $('#schedule-mode');
-    var eventSlot = {};
-    var checked = [];
-    var evId = parseInt($('#evId').val());
+    let $scheduleBlock = $('#schedule-mode');
+    let eventSlot = {};
+    let checked = $('#schedule-mode-zones').val().map((val) => +val);
+    let evId = +$('#evId').val();
 
-    $('#schedule-mode-zones option:selected').each(function () {
-        checked.push(parseInt($(this).val()));
-    });
-
-    eventSlot.duration = parseInt($scheduleBlock.find('.duration').val());
+    eventSlot.duration = +$scheduleBlock.find('.duration').val();
     eventSlot.channels = checked;
     eventSlot.title = $('.event-title').val();
     // If edit event
     if (!isNaN(evId)) {
         eventSlot.evId = evId;
     }
-
-    switch (parseInt($('#periodicity').val())) {
+    let maxDuration = 59;
+    switch (+$('#periodicity').val()) {
         case 0:
-            var $periodBlock = $('.period-block.hourly');
-            eventSlot.minute = parseInt($periodBlock.find('.time-minute').val());
-            eventSlot.second = parseInt($periodBlock.find('.time-second').val());
+            eventSlot.minute = +$('.period-block.hourly').find('.time-minute').val();
+            eventSlot.second = +$('.period-block.hourly').find('.time-second').val();
             eventSlot.periodicity = 0;
 
-            if (eventSlot.duration <= 0 || eventSlot.duration >= 59) {
-                $scheduleBlock.find('.duration').val(59);
-                eventSlot.duration = 59;
+            if (eventSlot.duration <= 0 || eventSlot.duration >= maxDuration) {
+                $scheduleBlock.find('.duration').val(maxDuration);
+                eventSlot.duration = maxDuration;
             }
             break;
         case 1:
-            var $periodBlock = $('.period-block.every-x-hours');
-            eventSlot.hours = parseInt($periodBlock.find('.time-hours').val());
-            eventSlot.minute = parseInt($periodBlock.find('.time-minute').val());
-            eventSlot.second = parseInt($periodBlock.find('.time-second').val());
+            eventSlot.hours = +$('.period-block.every-x-hours').find('.time-hours').val();
+            eventSlot.minute = +$('.period-block.every-x-hours').find('.time-minute').val();
+            eventSlot.second = +$('.period-block.every-x-hours').find('.time-second').val();
             eventSlot.periodicity = 1;
-
-            var maxDuration = (eventSlot.hours * 60) - 1;
+            maxDuration = (eventSlot.hours * 60) - 1;
             if (eventSlot.duration <= 0 || eventSlot.duration >= maxDuration) {
                 $scheduleBlock.find('.duration').val(maxDuration);
                 eventSlot.duration = maxDuration;
             }
             break;
         case 2:
-            var time = $('.period-block.daily').find('.time-hour-minute').val();
-            var timeArray = time.split(":");
-            eventSlot.hour = parseInt(timeArray[0]);
-            eventSlot.minute = parseInt(timeArray[1]);
+            var [hour, minute] = $('.period-block.daily').find('.time-hour-minute').val().split(":");
             eventSlot.periodicity = 2;
-
-            var maxDuration = 23 * 60;
+            eventSlot = { ...eventSlot, ...{ hour, minute } };
+            maxDuration = 23 * 60;
             if (eventSlot.duration <= 0 || eventSlot.duration >= maxDuration) {
                 $scheduleBlock.find('.duration').val(maxDuration);
                 eventSlot.duration = maxDuration;
             }
             break;
         case 3:
-            var $periodBlock = $('.period-block.every-x-days');
-            var time = $periodBlock.find('.time-hour-minute').val();
-            var timeArray = time.split(":");
-            eventSlot.days = parseInt($periodBlock.find('.time-days').val());
-            eventSlot.hour = parseInt(timeArray[0]);
-            eventSlot.minute = parseInt(timeArray[1]);
+            var [hour, minute] = $('.period-block.every-x-days').find('.time-hour-minute').val().split(":");
+            eventSlot.days = +$('.period-block.every-x-days').find('.time-days').val();
             eventSlot.periodicity = 3;
-
-            var maxDuration = ((eventSlot.days * 24) - 1) * 60;
+            eventSlot = { ...eventSlot, ...{ hour, minute } };
+            maxDuration = ((eventSlot.days * 24) - 1) * 60;
             if (eventSlot.duration <= 0 || eventSlot.duration >= maxDuration) {
                 $scheduleBlock.find('.duration').val(maxDuration);
                 eventSlot.duration = maxDuration;
             }
             break;
         case 4:
-            var $periodBlock = $('.period-block.weekly');
-            var time = $periodBlock.find('.time-hour-minute').val();
-            var timeArray = time.split(":");
-            eventSlot.dayOfWeek = parseInt($('#weekdays-selector label.active').find('input').val());
-            eventSlot.hour = parseInt(timeArray[0]);
-            eventSlot.minute = parseInt(timeArray[1]);
+            var [hour, minute] = $('.period-block.weekly').find('.time-hour-minute').val().split(":");
+            eventSlot.dayOfWeek = +$('#weekdays-selector label.active').find('input').val();
             eventSlot.periodicity = 4;
-
-            var maxDuration = ((7 * 24) - 1) * 60;
+            eventSlot = { ...eventSlot, ...{ hour, minute } };
+            maxDuration = ((7 * 24) - 1) * 60;
             if (eventSlot.duration <= 0 || eventSlot.duration >= maxDuration) {
                 $scheduleBlock.find('.duration').val(maxDuration);
                 eventSlot.duration = maxDuration;
             }
             break;
         case 5:
-            var $periodBlock = $('.period-block.monthly');
-            var time = $periodBlock.find('.time-hour-minute').val();
-            var timeArray = time.split(":");
-            eventSlot.dayOfMonth = parseInt($periodBlock.find('.time-day-of-month').val());
-            eventSlot.hour = parseInt(timeArray[0]);
-            eventSlot.minute = parseInt(timeArray[1]);
+            var [hour, minute] = $('.period-block.monthly').find('.time-hour-minute').val().split(":");
+            eventSlot.dayOfMonth = +$('.period-block.monthly').find('.time-day-of-month').val();
             eventSlot.periodicity = 5;
-
-            var maxDuration = ((30 * 24) - 1) * 60;
+            eventSlot = { ...eventSlot, ...{ hour, minute } };
+            maxDuration = ((30 * 24) - 1) * 60;
             if (eventSlot.duration <= 0 || eventSlot.duration >= maxDuration) {
                 $scheduleBlock.find('.duration').val(maxDuration);
                 eventSlot.duration = maxDuration;
             }
         case 6:
-            var date = $('#one-time-datetimepicker').data("DateTimePicker").viewDate();
+            let date = $('#one-time-datetimepicker').data("DateTimePicker").viewDate();
             eventSlot.year = date.year();
-            eventSlot.month = parseInt(date.format('MM'));
+            eventSlot.month = +date.format('MM');
             eventSlot.day = date.date();
             eventSlot.hour = date.hour();
             eventSlot.minute = date.minute();
@@ -872,109 +812,75 @@ function getSchedule() {
 }
 
 function getExplanationForSchedule(scheduleObject) {
-    let zonesString = scheduleObject.channels.join(', ');
-    let durationStr = moment.duration(scheduleObject.duration, 'minutes').format('HH[h]:mm[m]');
+    const zonesString = scheduleObject.channels.join(', ');
+    const durationStr = moment.duration(scheduleObject.duration, 'minutes').format('HH[h]:mm[m]');
     let title = "";
-    var on = "";
-    var getExampleText = function (currDate, scheduleObject) {
-        var endDate = moment(currDate);
-        var format = 'YYYY-MM-DD HH:mm:ss';
-        endDate.add(scheduleObject.duration, 'm');
-        return `<p>Ex: ${currDate.format(format)} - ${endDate.format(format)}</p>`;
-    }
+    let on = "";
+    let getExampleText = (currDate, scheduleObject, format = 'YYYY-MM-DD HH:mm:ss') => `<p>Ex: ${currDate.format(format)} - ${moment(currDate).add(scheduleObject.duration, 'm').format(format)}</p>`;
+    let getExamples = (date, scheduleObject, c, t) => {
+        var explanationString = '';
+        for (let i = 0; i < 3; i++) {
+            date.add(c, t);
+            explanationString += getExampleText(date, scheduleObject);
+        }
+
+        return explanationString;
+    };
+    var currDate = moment();
 
     switch (scheduleObject.periodicity) {
         case 0:
-            var currDate = moment();
             currDate.minute(scheduleObject.minute).second(scheduleObject.second);
             on = `${currDate.format('mm:ss')}`;
-            explanationString = `Irrigation for zone(s) ${zonesString} every hour on ${currDate.format('mm[m]:ss[s]')} with a duration of ${durationStr}\n`;
+            explanationString = `Irrigation for zone(s) ${zonesString} every hour on ${currDate.format('mm[m]:ss[s]')} with a duration of ${durationStr}\n${getExamples(currDate, scheduleObject, 1, 'h')}`;
             title = "Every hour";
-
-            for (var i = 0; i < 3; i++) {
-                currDate.add(1, 'h');
-                explanationString += getExampleText(currDate, scheduleObject);
-            }
             break;
         case 1:
-            var currDate = moment();
             currDate.minute(scheduleObject.minute).second(scheduleObject.second);
             on = `${currDate.format('mm:ss')}`;
-            explanationString = `Irrigation for zone(s) ${zonesString} every ${scheduleObject.hours} hours on ${currDate.format('mm[m]:ss[s]')} with a duration of ${durationStr}\n`;
+            explanationString = `Irrigation for zone(s) ${zonesString} every ${scheduleObject.hours} hours on ${currDate.format('mm[m]:ss[s]')} with a duration of ${durationStr}\n${getExamples(currDate, scheduleObject, scheduleObject.hours, 'h')}`;
             title = `Every ${scheduleObject.hours} hours`;
-
-            for (var i = 0; i < 3; i++) {
-                currDate.add(scheduleObject.hours, 'h');
-                explanationString += getExampleText(currDate, scheduleObject);
-            }
             break;
         case 2:
-            var currDate = moment();
             currDate.hour(scheduleObject.hour).minute(scheduleObject.minute).second(0);
             on = `${currDate.format('HH:mm')}`;
-            explanationString = `Irrigation for zone(s) ${zonesString} every day on ${currDate.format('HH[h]:mm[m][00s]')} with a duration of ${durationStr}\n`;
+            explanationString = `Irrigation for zone(s) ${zonesString} every day on ${currDate.format('HH[h]:mm[m][00s]')} with a duration of ${durationStr}\n${getExamples(currDate, scheduleObject, 1, 'd')}`;
             title = `Every day`;
-
-            for (var i = 0; i < 3; i++) {
-                currDate.add(1, 'd');
-                explanationString += getExampleText(currDate, scheduleObject);
-            }
             break;
         case 3:
-            var currDate = moment();
             currDate.hour(scheduleObject.hour).minute(scheduleObject.minute).second(0);
             on = `${currDate.format('HH:mm')}`;
-            explanationString = `Irrigation for zone(s) ${zonesString} every ${scheduleObject.days} days on ${currDate.format('HH[h]:mm[m][00s]')} with a duration of ${durationStr}\n`;
+            explanationString = `Irrigation for zone(s) ${zonesString} every ${scheduleObject.days} days on ${currDate.format('HH[h]:mm[m][00s]')} with a duration of ${durationStr}\n${getExamples(currDate, scheduleObject, scheduleObject.days, 'd')}`;
             title = `Every ${scheduleObject.days} days`;
-
-            for (var i = 0; i < 3; i++) {
-                currDate.add(scheduleObject.days, 'd');
-                explanationString += getExampleText(currDate, scheduleObject);
-            }
             break;
         case 4:
-            var currDate = moment();
             var dayOfWeekStr = weekNames[scheduleObject.dayOfWeek - 1];
             currDate.day(scheduleObject.dayOfWeek - 1).hour(scheduleObject.hour).minute(scheduleObject.minute).second(0);
             on = `${currDate.format('HH:mm')}`;
-            explanationString = `Irrigation for zone(s) ${zonesString} every ${dayOfWeekStr} on ${currDate.format('HH[h]:mm[m][00s]')} with a duration of ${durationStr}\n`;
+            explanationString = `Irrigation for zone(s) ${zonesString} every ${dayOfWeekStr} on ${currDate.format('HH[h]:mm[m][00s]')} with a duration of ${durationStr}\n${getExamples(currDate, scheduleObject, 1, 'w')}`;
             title = `Every ${dayOfWeekStr}`;
-
-            for (var i = 0; i < 3; i++) {
-                currDate.add(1, 'w');
-                explanationString += getExampleText(currDate, scheduleObject);
-            }
             break;
         case 5:
-            var currDate = moment();
             currDate.hour(scheduleObject.hour).minute(scheduleObject.minute).second(0);
             currDate.date(scheduleObject.dayOfMonth);
             on = `${currDate.format('HH:mm')}`;
-            explanationString = `Irrigation for zone(s) ${zonesString} every month on ${currDate.format('HH[h]:mm[m][00s]')} with a duration of ${durationStr}\n`;
+            explanationString = `Irrigation for zone(s) ${zonesString} every month on ${currDate.format('HH[h]:mm[m][00s]')} with a duration of ${durationStr}\n${getExamples(currDate, scheduleObject, 1, 'M')}`;
             title = `Every month`;
-
-            for (var i = 0; i < 3; i++) {
-                currDate.add(1, 'M');
-                explanationString += getExampleText(currDate, scheduleObject);
-            }
         case 6:
-            var currDate = moment([scheduleObject.year, scheduleObject.month - 1, scheduleObject.day, scheduleObject.hour, scheduleObject.minute, scheduleObject.second, 0]);
+            currDate = moment([scheduleObject.year, scheduleObject.month - 1, scheduleObject.day, scheduleObject.hour, scheduleObject.minute, scheduleObject.second, 0]);
             on = `${currDate.format('YYYY-MM-DD HH:mm:ss')}`;
             explanationString = `Irrigation for zone(s) ${zonesString} on ${currDate.format('YYYY-MM-DD HH:mm:ss')} with a duration of ${durationStr}\n`;
             title = `Once`;
             break;
     }
 
-    var total = parseInt(calendarEvents.occupied) || 0;
-    title = `${total}. ${title} on ${on}`;
-
-    $('.event-title').val(title);
+    $('.event-title').val(`${+calendarEvents.occupied || 0}. ${title} on ${on}`);
 
     return explanationString;
 }
 
 function addOrEditSchedule() {
-    var eventSlot = getSchedule();
+    let eventSlot = getSchedule();
 
     if (availableSlots <= 0 && isNaN(eventSlot.evId)) {
         alert("There are no available slots");
@@ -988,150 +894,102 @@ function addOrEditSchedule() {
     }
 
     if (confirm("Are you sure?")) {
-        var command = {};
-        command.command = "addOrEditSchedule";
-        command.data = eventSlot;
-        console.log(command, JSON.stringify(command));
         $('.add-schedule').prop("disabled", 1);
-        ws.send(JSON.stringify(command));
+        sendWSCommand("addOrEditSchedule", eventSlot);
     }
 }
 
 function stopManualIrrigation() {
-    ws.send('{"command": "stopManualIrrigation"}');
+    sendWSCommand("stopManualIrrigation");
     $('#manual-mode .stop-irrigation-btn').hide();
     $('#manual-mode .start-irrigation-btn').show();
 }
 
 function saveWifiConfig() {
-    var command = {};
-    command.command = "WiFiConfig";
-    command.data = {};
-    command.data.ssid = $("#ssid").value;
-    command.data.pass = $("#pass").value;
-
-    ws.send(JSON.stringify(command));
+    sendWSCommand("WiFiConfig", { ssid: $("#ssid").val(), pass: $("#pass").val() });
 }
 
 function getSlots() {
-    var command = {};
-    command.command = "getSlots";
-
-    ws.send(JSON.stringify(command));
+    sendWSCommand("getSlots");
 }
 
 function removeEvent(evId) {
-    var command = {};
-    command.command = "removeEvent";
-    command.data = {};
-    command.data.evId = evId;
-
-    ws.send(JSON.stringify(command));
+    sendWSCommand("removeEvent", { evId });
     $('.action-btn').prop('disabled', 1);
 }
 
 function setEventEnabled(evId, enabled = true) {
-    var command = {};
-    command.command = "setEventEnabled";
-    command.data = {};
-    command.data.evId = evId;
-    command.data.enabled = enabled;
-
-    ws.send(JSON.stringify(command));
+    sendWSCommand("setEventEnabled", { evId, enabled });
     $('.action-btn').prop('disabled', 1);
 }
 
 function getSysInfo() {
-    var command = {};
-    command.command = "getSysInfo";
-
-    ws.send(JSON.stringify(command));
+    sendWSCommand("getSysInfo");
 }
 
 function getWaterInfo() {
-    var command = {};
-    command.command = "getWaterInfo";
-
-    ws.send(JSON.stringify(command));
+    sendWSCommand("getWaterInfo");
 }
 
 function skipEvent(evId) {
     if (confirm("Are you sure?")) {
-        var command = {};
-        command.command = "skipEvent";
-        command.data = {};
-        command.data.evId = evId;
-
-        ws.send(JSON.stringify(command));
+        sendWSCommand("skipEvent", { evId });
     }
 }
 
 function getChannelNames() {
-    var command = {};
-    command.command = "getChannelNames";
-    ws.send(JSON.stringify(command));
+    sendWSCommand("getChannelNames");
 }
 
 function setTime(date) {
-    var command = {};
-    command.command = "setTime";
-    command.data = {};
-    command.data.year = date.year();
-    command.data.month = parseInt(date.format('MM'));
-    command.data.day = date.date();
-    command.data.hour = date.hour();
-    command.data.minute = date.minute();
-    command.data.second = date.second();
-    ws.send(JSON.stringify(command));
+    let year = date.year(),
+        month = +date.format('MM'),
+        day = date.date(),
+        hour = date.hour(),
+        minute = date.minute(),
+        second = date.second();
     currentTime = date;
-    console.log(command);
+    sendWSCommand("setTime", { year, month, day, hour, minute, second });
+}
+
+function getSettings() {
+    sendWSCommand("getSettings");
 }
 
 function fetchWeatherForecast() {
-    return new Promise((resolve, reject) => {
-        return Promise
-            .all([getForecastFromAccuWeather(), getForecastFromApixu()])
-            .then(function (values) {
-                console.log(values);
-                if ($('.forecast-btn').length === 0) {
-                    let forecastButtons = `
-                <div class="btn-group forecast-btn" data-toggle="buttons">
-                    <label class="btn btn-sm btn-default forecast-apixu">
-                        <input type="radio" checked> Apixu forecast
-                    </label>
-                    <label class="btn btn-sm btn-default forecast-accuweather">
-                        <input type="radio" checked> AccuWeather forecast
-                    </label>
-                </div>`;
-
-                    $(".fc-right").prepend(forecastButtons);
-                }
-
-                $('.forecast-apixu').click();
-
-                resolve(values);
-            });
+    return new Promise(async (resolve, reject) => {
+        const values = await Promise.all([getForecastFromAccuWeather(), getForecastFromApixu()]);
+        if ($('.forecast-btn').length === 0) {
+            $(".fc-right").prepend(`
+            <div class="btn-group forecast-btn" data-toggle="buttons">
+                <label class="btn btn-sm btn-default forecast-apixu">
+                    <input type="radio" checked> Apixu forecast
+                </label>
+                <label class="btn btn-sm btn-default forecast-accuweather">
+                    <input type="radio" checked> AccuWeather forecast
+                </label>
+            </div>`);
+        }
+        $('.forecast-apixu').click();
+        resolve(values);
     });
 }
 
 function getForecastFromAccuWeather() {
     return new Promise((resolve, reject) => {
-        let settings = getObjectFromLocalStorage("settings");
-        var accuWeatherForecast = getObjectFromLocalStorage("accuWeatherForecast");
-        var accuWeatherLastWeatherUpdate = !$.isEmptyObject(accuWeatherForecast) ? accuWeatherForecast.lastWeatherUpdate : moment().unix();
-        var accuWeatherLastCityKey = !$.isEmptyObject(accuWeatherForecast) ? accuWeatherForecast.lastCityKey : null;
+        let settings = getObjectFromLocalStorage("settings"),
+            accuWeatherForecast = getObjectFromLocalStorage("accuWeatherForecast"),
+            accuWeatherLastWeatherUpdate = !$.isEmptyObject(accuWeatherForecast) ? accuWeatherForecast.lastWeatherUpdate : moment().unix(),
+            accuWeatherLastCityKey = !$.isEmptyObject(accuWeatherForecast) ? accuWeatherForecast.lastCityKey : null;
 
         // Last update more then 6h ago or location has been changed
         var accuWeatherNeedUpdate = (moment().unix() - accuWeatherLastWeatherUpdate > 21600) || accuWeatherLastCityKey !== settings.accuWeatherCityKey;
         if (settings.accuWeatherCityKey && ($.isEmptyObject(accuWeatherForecast) || accuWeatherNeedUpdate)) {
             $.get(`${accuWeatherApiDomain}/forecasts/v1/daily/5day/${settings.accuWeatherCityKey}?apikey=${accuWeatherAPIKey}&details=true&metric=true&language=ru`)
-                .done(function (weatherData) {
+                .done((weatherData) => {
                     weatherData.lastWeatherUpdate = moment().unix();
                     weatherData.lastCityKey = settings.accuWeatherCityKey;
-
-                    accuWeatherForecast = updateObjectInLocalStorage("accuWeatherForecast", weatherData);
-
-                    resolve(accuWeatherForecast);
+                    resolve(updateObjectInLocalStorage("accuWeatherForecast", weatherData));
                 })
                 .fail(reject);
         } else {
@@ -1142,21 +1000,19 @@ function getForecastFromAccuWeather() {
 
 function getForecastFromApixu() {
     return new Promise((resolve, reject) => {
-        let settings = getObjectFromLocalStorage("settings");
-        var apixuForecast = getObjectFromLocalStorage("apixuForecast");
-        var apixuLastWeatherUpdate = !$.isEmptyObject(apixuForecast) ? apixuForecast.lastWeatherUpdate : moment().unix();
-        var apixuLastWeatherLat = !$.isEmptyObject(apixuForecast) ? apixuForecast.location.lat : null;
-        var apixuLastWeatherLon = !$.isEmptyObject(apixuForecast) ? apixuForecast.location.lon : null;
-        // Last update more then 3h ago or location has been changed
-        var locationChanged = Math.abs(apixuLastWeatherLat - settings.lat) > 0.2 || Math.abs(apixuLastWeatherLon - settings.lon) > 0.2;
-        var apixuNeedUpdate = (moment().unix() - apixuLastWeatherUpdate > 10800) || locationChanged;
+        let settings = getObjectFromLocalStorage("settings"),
+            apixuForecast = getObjectFromLocalStorage("apixuForecast"),
+            apixuLastWeatherUpdate = !$.isEmptyObject(apixuForecast) ? apixuForecast.lastWeatherUpdate : moment().unix(),
+            apixuLastWeatherLat = !$.isEmptyObject(apixuForecast) ? apixuForecast.location.lat : null,
+            apixuLastWeatherLon = !$.isEmptyObject(apixuForecast) ? apixuForecast.location.lon : null,
+            // Last update more then 3h ago or location has been changed
+            locationChanged = Math.abs(apixuLastWeatherLat - settings.lat) > 0.2 || Math.abs(apixuLastWeatherLon - settings.lon) > 0.2,
+            apixuNeedUpdate = (moment().unix() - apixuLastWeatherUpdate > 10800) || locationChanged;
         if (settings.location && ($.isEmptyObject(apixuForecast) || apixuNeedUpdate)) {
             $.get(`${apixuApiDomain}/forecast.json?key=${apixuAPIKey}&q=${settings.location}&days=10&lang=en`)
-                .done(function (weatherData) {
+                .done((weatherData) => {
                     weatherData.lastWeatherUpdate = moment().unix();
-                    apixuForecast = updateObjectInLocalStorage("apixuForecast", weatherData);
-
-                    resolve(apixuForecast);
+                    resolve(updateObjectInLocalStorage("apixuForecast", weatherData));
                 })
                 .fail(reject);
         } else {
@@ -1166,10 +1022,10 @@ function getForecastFromApixu() {
 }
 
 function showForecastDayOnCalendar(date, iconUrl, iconAlt, tempMin, tempMax, uvIndex, totalprecip, eto = null) {
-    var monthDayElement = $(`td.fc-day[data-date="${date}"]`);
-    var weekHeaderElement = $(`th.fc-day-header[data-date="${date}"]`);
-    var uvIndexColor = "green";
-    var uvIndexTitle = "No protection required";
+    let monthDayElement = $(`td.fc-day[data-date="${date}"]`),
+        weekHeaderElement = $(`th.fc-day-header[data-date="${date}"]`),
+        uvIndexColor = "green",
+        uvIndexTitle = "No protection required";
     if (uvIndex >= 3 && uvIndex <= 5) {
         uvIndexColor = "#f8af44";
         uvIndexTitle = "Protection required";
@@ -1183,13 +1039,6 @@ function showForecastDayOnCalendar(date, iconUrl, iconAlt, tempMin, tempMax, uvI
         uvIndexColor = "#aa5b99";
         uvIndexTitle = "Can't go outdor";
     }
-
-    if (null === eto) {
-        eto = `<span title="Evapotranspiration" style="display: none"></span>`;
-    } else {
-        eto = `<span title="Evapotranspiration" style="font-size: 11px">ETo ${eto}mm </span>`;
-    }
-
     let template = `
     <div class='weather-block'>
         <img src='${iconUrl}' alt='${iconAlt}' title='${iconAlt}'/>
@@ -1200,7 +1049,7 @@ function showForecastDayOnCalendar(date, iconUrl, iconAlt, tempMin, tempMax, uvI
         <div style="margin-left: 5px" class="hidden-xs">
             <span title="UV-index(${uvIndexTitle})" style="font-size: 11px; color: ${uvIndexColor}"><i class="fa fa-sun"/> ${uvIndex}</span>    
             <span title="Amount of precipitation" style="font-size: 11px"><i class="fa fa-tint"/> ${totalprecip}mm </span>                    
-            ${eto}
+            ${!eto ? "" : `<span title="Evapotranspiration" style="font-size: 11px">ETo: ${eto}mm</span>`}
         </div>
     </div>`;
 
@@ -1211,35 +1060,20 @@ function showForecastDayOnCalendar(date, iconUrl, iconAlt, tempMin, tempMax, uvI
 function showForecastFromApixuOnCalendar() {
     Promise
         .all([getForecastFromAccuWeather(), getForecastFromApixu()])
-        .then(function (weatherData) {
+        .then((weatherData) => {
             let [accuWeatherForecast, apixuForecast] = weatherData;
             let settings = getObjectFromLocalStorage("settings");
             if (!$.isEmptyObject(apixuForecast)) {
                 $('.weather-block').remove();
-                $.each(apixuForecast.forecast.forecastday, function (index, forecast) {
-                    var hoursOfSun = null;
+                $.each(apixuForecast.forecast.forecastday, (index, forecast) => {
+                    let hoursOfSun = null;
 
-                    $.each(accuWeatherForecast.DailyForecasts, function (index, accuWeatherForecastDay) {
+                    $.each(accuWeatherForecast.DailyForecasts, (index, accuWeatherForecastDay) => {
                         if (moment.unix(accuWeatherForecastDay.EpochDate).format("YYYY-MM-DD") === moment(forecast.date).format("YYYY-MM-DD")) {
-                            hoursOfSun = parseFloat(accuWeatherForecastDay.HoursOfSun);
+                            hoursOfSun = +accuWeatherForecastDay.HoursOfSun;
                             return false;
                         }
                     });
-
-                    var eto = ETo(
-                        parseFloat(forecast.day.maxtemp_c),
-                        parseFloat(forecast.day.mintemp_c),
-                        null,
-                        null,
-                        parseFloat(forecast.day.avghumidity / 100),
-                        hoursOfSun,
-                        null,
-                        moment().date(),
-                        moment().month() - 1,
-                        settings.lat,
-                        settings.elevation,
-                        parseFloat(forecast.day.maxwind_kph)
-                    );
 
                     showForecastDayOnCalendar(
                         forecast.date,
@@ -1249,7 +1083,20 @@ function showForecastFromApixuOnCalendar() {
                         forecast.day.maxtemp_c,
                         forecast.day.uv,
                         forecast.day.totalprecip_mm,
-                        eto
+                        ETo(
+                            +forecast.day.maxtemp_c,
+                            +forecast.day.mintemp_c,
+                            null,
+                            null,
+                            +forecast.day.avghumidity / 100,
+                            hoursOfSun,
+                            null,
+                            moment().date(),
+                            moment().month() - 1,
+                            settings.lat,
+                            settings.elevation,
+                            +forecast.day.maxwind_kph
+                        )
                     );
                 });
             }
@@ -1257,37 +1104,22 @@ function showForecastFromApixuOnCalendar() {
 }
 
 function showForecastFromAccuWeatherOnCalendar() {
-    getForecastFromAccuWeather().then(function (weatherData) {
+    getForecastFromAccuWeather().then((weatherData) => {
         if (!$.isEmptyObject(weatherData)) {
             $('.weather-block').remove();
             let settings = getObjectFromLocalStorage("settings");
-            $.each(weatherData.DailyForecasts, function (index, forecast) {
-                var date = moment(moment.unix(forecast.EpochDate)).format("YYYY-MM-DD");
-                var iconIndex = forecast.Day.Icon < 10 ? `0${forecast.Day.Icon}` : forecast.Day.Icon;
-                var dayIcon = `https://developer.accuweather.com/sites/default/files/${iconIndex}-s.png`;
-                var totalprecip = parseFloat(forecast.Day.TotalLiquid.Value + forecast.Night.TotalLiquid.Value).toFixed(1);
-                var uvIndex = -1;
-                $.each(forecast.AirAndPollen, function (index, el) {
+            $.each(weatherData.DailyForecasts, (index, forecast) => {
+                let date = moment(moment.unix(forecast.EpochDate)).format("YYYY-MM-DD"),
+                    iconIndex = forecast.Day.Icon < 10 ? `0${forecast.Day.Icon}` : forecast.Day.Icon,
+                    dayIcon = `https://developer.accuweather.com/sites/default/files/${iconIndex}-s.png`,
+                    totalprecip = (+forecast.Day.TotalLiquid.Value + forecast.Night.TotalLiquid.Value).toFixed(1),
+                    uvIndex = -1;
+                $.each(forecast.AirAndPollen, (index, el) => {
                     if (el.Name === "UVIndex") {
                         uvIndex = el.Value;
                         return false;
                     }
                 });
-
-                var eto = ETo(
-                    parseFloat(forecast.Temperature.Maximum.Value),
-                    parseFloat(forecast.Temperature.Minimum.Value),
-                    null,
-                    null,
-                    null,
-                    parseFloat(forecast.HoursOfSun),
-                    null,
-                    moment().date(),
-                    moment().month() - 1,
-                    settings.lat,
-                    settings.elevation,
-                    parseFloat(forecast.Day.Wind.Speed.Value)
-                );
 
                 showForecastDayOnCalendar(
                     date,
@@ -1297,7 +1129,20 @@ function showForecastFromAccuWeatherOnCalendar() {
                     forecast.Temperature.Maximum.Value,
                     uvIndex,
                     totalprecip,
-                    eto
+                    ETo(
+                        +forecast.Temperature.Maximum.Value,
+                        +forecast.Temperature.Minimum.Value,
+                        null,
+                        null,
+                        null,
+                        +forecast.HoursOfSun,
+                        null,
+                        moment().date(),
+                        moment().month() - 1,
+                        settings.lat,
+                        settings.elevation,
+                        +forecast.Day.Wind.Speed.Value
+                    )
                 );
             });
         }
@@ -1309,60 +1154,52 @@ function getObjectFromLocalStorage(name) {
 }
 
 function updateObjectInLocalStorage(name, options) {
-    let object = getObjectFromLocalStorage(name);
-    $.extend(object, options);
+    let object = { ...getObjectFromLocalStorage(name), ...options };
     localStorage.setItem(name, JSON.stringify(object));
 
     return object;
 }
 
-function getSettings() {
-    var command = {};
-    command.command = "getSettings";
-    ws.send(JSON.stringify(command));
-}
-
 function ETo(Tmax, Tmin, RHmin, RHmax, RHmean, hoursOfSun, pressure, day, month, lat, alt, windSpeed) {
     //Input parameters
-    var n = hoursOfSun; //Hours of sun from weather forecast
-    var P = pressure; //Atmospheric pressure from weather station. kPa
-    var Y = moment().year();
-    var D = day; //Current day
-    var M = month; //Current month
-    var bissextile = (Y % 4 != 0 || Y % 100 == 0 && Y % 400 != 0) ? false : true;
-    var latitude = lat; // Device latitude. Get from settings
-    var altitude = alt; //Altitude from sealevel. meters
-    var WSkmhOn10m = windSpeed; //Wind speed from weather station. km/h
-
-    //Wind speed transformation   
-    var WSmsOn10m = WSkmhOn10m / 3.6;
-    var u2 = 0.748 * WSmsOn10m; // Wind speed on height 2m in m/s
+    let n = hoursOfSun, //Hours of sun from weather forecast
+        P = pressure, //Atmospheric pressure from weather station. kPa
+        Y = moment().year(),
+        D = day, //Current day
+        M = month, //Current month
+        bissextile = (Y % 4 != 0 || Y % 100 == 0 && Y % 400 != 0) ? false : true,
+        latitude = lat, // Device latitude. Get from settings
+        altitude = alt, //Altitude from sealevel. meters
+        WSkmhOn10m = windSpeed, //Wind speed from weather station. km/h
+        //Wind speed transformation   
+        WSmsOn10m = WSkmhOn10m / 3.6,
+        u2 = 0.748 * WSmsOn10m; // Wind speed on height 2m in m/s
 
     //Parameters
-
-    if (null === P && null !== alt) {
+    if (!P && alt) {
         P = 101.3 * Math.pow(((293 - 0.0065 * alt) / 293), 5.26);
-        console.log(P);
     }
 
-    var Tmean = (Tmax + Tmin) / 2;
-    var delta = (4098 * (0.6108 * Math.exp((17.27 * Tmean) / (Tmean + 237.3)))) / Math.pow(Tmean + 237.3, 2);
-    var gamma = 0.000665 * P;
+    let Tmean = (Tmax + Tmin) / 2,
+        delta = (4098 * (0.6108 * Math.exp((17.27 * Tmean) / (Tmean + 237.3)))) / Math.pow(Tmean + 237.3, 2),
+        gamma = 0.000665 * P;
 
     //Steam pressure deficiency
-    var e0_Tmax = 0.6108 * Math.exp((17.27 * Tmax) / (Tmax + 237.3));
-    var e0_Tmin = 0.6108 * Math.exp((17.27 * Tmin) / (Tmin + 237.3));
-    var es = (e0_Tmax + e0_Tmin) / 2;
-    if (null !== RHmin && null !== RHmax) {
-        var ea = ((e0_Tmin * RHmax) + (e0_Tmax * RHmin)) / 2;
-    } else if (null !== RHmean) {
-        var ea = RHmean * ((e0_Tmax + e0_Tmin) / 2);
-    } else if (null === RHmin && null === RHmax && null === RHmean) {
-        var ea = e0_Tmin;
+    let e0_Tmax = 0.6108 * Math.exp((17.27 * Tmax) / (Tmax + 237.3)),
+        e0_Tmin = 0.6108 * Math.exp((17.27 * Tmin) / (Tmin + 237.3)),
+        es = (e0_Tmax + e0_Tmin) / 2;
+
+    let ea = 0;
+    if (RHmin && RHmax) {
+        ea = ((e0_Tmin * RHmax) + (e0_Tmax * RHmin)) / 2;
+    } else if (RHmean) {
+        ea = RHmean * ((e0_Tmax + e0_Tmin) / 2);
+    } else if (!RHmin && !RHmax && !RHmean) {
+        ea = e0_Tmin;
     }
 
     //Radiation    
-    var J = Math.floor(275 * M / 9 - 30 + D) - 2;
+    let J = ~~(275 * M / 9 - 30 + D) - 2;
 
     if (M < 3) {
         J += 2;
@@ -1372,43 +1209,32 @@ function ETo(Tmax, Tmin, RHmin, RHmax, RHmean, hoursOfSun, pressure, day, month,
         J += 1;
     }
 
-    var dr = 1 + 0.033 * Math.cos(((2 * Math.PI) / 365) * J);
-    var delta_sol = 0.4098 * Math.sin((((2 * Math.PI) / 365) * J) - 1.39);
+    let dr = 1 + 0.033 * Math.cos(((2 * Math.PI) / 365) * J),
+        delta_sol = 0.4098 * Math.sin((((2 * Math.PI) / 365) * J) - 1.39),
+        fi = (Math.PI / 180) * latitude,
+        omega_s = Math.acos((Math.tan(fi) * -1) * Math.tan(delta_sol)),
+        //Extraterrestrial radiation for the day period
+        Ra = ((24 * 60) / Math.PI) * 0.0820 * dr * (omega_s * (Math.sin(fi) * Math.sin(delta_sol)) + (Math.cos(fi) * Math.cos(delta_sol)) * Math.sin(omega_s)),
+        //Daylight hours
+        N = (24 / Math.PI) * omega_s,
+        //Relative sunshine duration
+        nN = n / N,
+        //Sun radiation    
+        Rs = (0.25 + 0.5 * nN) * Ra,
+        //Sun radiation in clear sky
+        Rso = (0.75 + 0.00002 * altitude) * Ra,
+        //Pure shortwave radiation
+        Rns = (1 - 0.23) * Rs,
+        //Pure longwave radiation
+        sigmaTmax_k4 = 0.000000004903 * Math.pow(Tmax + 273.16, 4),
+        sigmaTmin_k4 = 0.000000004903 * Math.pow(Tmin + 273.16, 4),
+        Rnl = ((sigmaTmax_k4 + sigmaTmin_k4) / 2) * (0.34 - 0.14 * Math.sqrt(ea)) * (1.35 * (Rs / Rso) - 0.35),
+        //Pure longwave radiation
+        Rn = Rns - Rnl,
+        //Soil heat flux
+        G = 0, //Ignore for 24-hour period
+        //Etalon evapotranspiration
+        ETo = ((0.408 * (Rn - G)) * delta / (delta + gamma * (1 + 0.34 * u2))) + (900 / (Tmean + 273) * (es - ea) * gamma / delta + gamma * (1 + 0.34 * u2));
 
-    var fi = (Math.PI / 180) * latitude;
-    var omega_s = Math.acos((Math.tan(fi) * -1) * Math.tan(delta_sol));
-
-    //Extraterrestrial radiation for the day period
-    var Ra = ((24 * 60) / Math.PI) * 0.0820 * dr * (omega_s * (Math.sin(fi) * Math.sin(delta_sol)) + (Math.cos(fi) * Math.cos(delta_sol)) * Math.sin(omega_s));
-
-    //Daylight hours
-    var N = (24 / Math.PI) * omega_s;
-
-    //Relative sunshine duration
-    var nN = n / N;
-
-    //Sun radiation    
-    var Rs = (0.25 + 0.5 * nN) * Ra;
-
-    //Sun radiation in clear sky
-    var Rso = (0.75 + 0.00002 * altitude) * Ra;
-
-    //Pure shortwave radiation
-    var Rns = (1 - 0.23) * Rs;
-
-    //Pure longwave radiation
-    var sigmaTmax_k4 = 0.000000004903 * Math.pow(Tmax + 273.16, 4);
-    var sigmaTmin_k4 = 0.000000004903 * Math.pow(Tmin + 273.16, 4);
-    var Rnl = ((sigmaTmax_k4 + sigmaTmin_k4) / 2) * (0.34 - 0.14 * Math.sqrt(ea)) * (1.35 * (Rs / Rso) - 0.35);
-
-    //Pure longwave radiation
-    var Rn = Rns - Rnl;
-
-    //Soil heat flux
-    var G = 0; //Ignore for 24-hour period
-
-    //Etalon evapotranspiration
-    var ETo = ((0.408 * (Rn - G)) * delta / (delta + gamma * (1 + 0.34 * u2))) + (900 / (Tmean + 273) * (es - ea) * gamma / delta + gamma * (1 + 0.34 * u2));
-
-    return parseFloat(ETo).toFixed(1);
+    return (+ETo).toFixed(1);
 }
