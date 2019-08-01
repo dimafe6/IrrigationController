@@ -12,6 +12,7 @@ let calendarEvents = {};
 let availableSlots;
 let calendar;
 let currentTime = null;
+let eventsTable = null;
 
 let compareOccurences = (a, b) => (a.from < b.from ? 1 : -1);
 
@@ -146,6 +147,11 @@ $(document).ready(() => {
 
     $(document).on('click', '.event-action-remove', function () {
         removeEvent(+$(this).closest('tr').find('td:first').text());
+    });
+
+    eventsTable = $('#events-list').DataTable({
+        paging: false,
+        dom: 'rt'
     });
 
     $(document).on('click', '.event-action-edit', function () {
@@ -450,13 +456,13 @@ function getSlotById(evId) {
 };
 
 function processSlots(data = null) {
-    calendarEvents = data;
     let $eventTableBody = $('#events-list tbody');
+    calendarEvents = data;
     if (calendarEvents) {
         $('#calendar').fullCalendar('refetchEvents');
         $('#calendar').fullCalendar('rerenderEvents');
 
-        $eventTableBody.empty();
+        eventsTable.clear().draw();
         let total = +calendarEvents.total;
         let occupied = +calendarEvents.occupied;
         let available = total - occupied;
@@ -477,7 +483,6 @@ function processSlots(data = null) {
             let enableDisableBtn = enabled ? disableBtn : enableBtn;
 
             let actions = `
-                <td class="event-actions">
                     <div class="dropdown">
                         <button class="btn btn-xs btn-default dropdown-toggle action-btn" type="button" data-toggle="dropdown">Actions <span class="caret"></span></button>
                         <ul class="dropdown-menu dropdown-menu-right" role="menu">
@@ -489,8 +494,7 @@ function processSlots(data = null) {
                             </li>
                             ${enableDisableBtn}
                         </ul>
-                    </div>
-                </td>`;
+                    </div>`;
 
             if (slot) {
                 let duration = moment.duration(slot.duration, 'minutes').format('HH[h]:mm[m]');
@@ -508,6 +512,7 @@ function processSlots(data = null) {
             }
 
             $eventTableBody.append(tr);
+            eventsTable.draw();
         }
     }
 }
@@ -1110,7 +1115,7 @@ function showForecastFromAccuWeatherOnCalendar() {
             let settings = getObjectFromLocalStorage("settings");
             $.each(weatherData.DailyForecasts, (index, forecast) => {
                 let date = moment(moment.unix(forecast.EpochDate)).format("YYYY-MM-DD"),
-                    dayIcon = `https://developer.accuweather.com/sites/default/files/${forecast.Day.Icon.toString().padStart(2,0)}-s.png`,
+                    dayIcon = `https://developer.accuweather.com/sites/default/files/${forecast.Day.Icon.toString().padStart(2, 0)}-s.png`,
                     totalprecip = (+forecast.Day.TotalLiquid.Value + forecast.Night.TotalLiquid.Value).toFixed(1),
                     uvIndex = -1;
                 $.each(forecast.AirAndPollen, (index, el) => {
@@ -1176,11 +1181,11 @@ function ETo(Tmax, Tmin, RHmin, RHmax, RHmean, hoursOfSun, pressure, day, month,
 
     //Parameters
     if (!P && alt) {
-        P = 101.3 * (((293 - 0.0065 * alt) / 293))**5.26;
+        P = 101.3 * (((293 - 0.0065 * alt) / 293)) ** 5.26;
     }
 
     let Tmean = (Tmax + Tmin) / 2,
-        delta = (4098 * (0.6108 * Math.exp((17.27 * Tmean) / (Tmean + 237.3)))) / (Tmean + 237.3)**2,
+        delta = (4098 * (0.6108 * Math.exp((17.27 * Tmean) / (Tmean + 237.3)))) / (Tmean + 237.3) ** 2,
         gamma = 0.000665 * P;
 
     //Steam pressure deficiency
@@ -1225,8 +1230,8 @@ function ETo(Tmax, Tmin, RHmin, RHmax, RHmean, hoursOfSun, pressure, day, month,
         //Pure shortwave radiation
         Rns = (1 - 0.23) * Rs,
         //Pure longwave radiation
-        sigmaTmax_k4 = 4.903e-9 * (Tmax + 273.16)**4,
-        sigmaTmin_k4 = 4.903e-9 * (Tmin + 273.16)**4,
+        sigmaTmax_k4 = 4.903e-9 * (Tmax + 273.16) ** 4,
+        sigmaTmin_k4 = 4.903e-9 * (Tmin + 273.16) ** 4,
         Rnl = ((sigmaTmax_k4 + sigmaTmin_k4) / 2) * (0.34 - 0.14 * Math.sqrt(ea)) * (1.35 * (Rs / Rso) - 0.35),
         //Pure longwave radiation
         Rn = Rns - Rnl,
