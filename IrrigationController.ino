@@ -1317,19 +1317,18 @@ void checkCalendar()
         (Chronos::DateTime::now() - occurrenceList[i].finish).printTo(Serial);
         Serial.println("");
 
-        if ((int)occurrenceList[i].id == MANUAL_IRRIGATION_EVENT_ID)
-        {
-          if ((Chronos::DateTime::now() - occurrenceList[i].finish) <= 1)
-          {
-            stopManualIrrigation();
-          }
-        }
-
         // If the current event is not recurring and is overdue then delete it
         if (MyCalendar.isOverdue((int)occurrenceList[i].id))
         {
-          removeEvent((int)occurrenceList[i].id);
-          sendSlotsToWS();
+          if ((int)occurrenceList[i].id == MANUAL_IRRIGATION_EVENT_ID)
+          {
+            stopManualIrrigation();
+          }
+          else
+          {
+            removeEvent((int)occurrenceList[i].id);
+            sendSlotsToWS();
+          }
         }
 
         for (byte n = 0; n < CHANNELS_COUNT; n++)
