@@ -1110,7 +1110,7 @@ function showForecastFromAccuWeatherOnCalendar() {
             let settings = getObjectFromLocalStorage("settings");
             $.each(weatherData.DailyForecasts, (index, forecast) => {
                 let date = moment(moment.unix(forecast.EpochDate)).format("YYYY-MM-DD"),
-                    dayIcon = `https://developer.accuweather.com/sites/default/files/${forecast.Day.Icon.padStart(2,0)}-s.png`,
+                    dayIcon = `https://developer.accuweather.com/sites/default/files/${forecast.Day.Icon.toString().padStart(2,0)}-s.png`,
                     totalprecip = (+forecast.Day.TotalLiquid.Value + forecast.Night.TotalLiquid.Value).toFixed(1),
                     uvIndex = -1;
                 $.each(forecast.AirAndPollen, (index, el) => {
