@@ -530,7 +530,7 @@ bool openScheduleFromSD(DynamicJsonDocument &doc)
   DeserializationError error = deserializeJson(doc, scheduleFile);
   if (error)
   {
-    PRINTLN(F("deserializeJson() failed with code "));
+    PRINTLN(F("Failed to serialize schedule file"));
     PRINTLN(error.c_str());
 
     return false;
@@ -584,7 +584,13 @@ void sendSlotsToWS()
       slots.add(eventData);
     }
 
-    if (slots.size() != MyCalendar.numEvents())
+    byte currentEvents = MyCalendar.numEvents();
+    if (currentEvents > 0 && MyCalendar.isEnabled(MANUAL_IRRIGATION_EVENT_ID))
+    {
+      currentEvents--;
+    }
+
+    if (slots.size() != currentEvents)
     {
       loadCalendarFromSD();
       sendSlotsToWS();
@@ -786,18 +792,18 @@ void loadManualIrrigationFromSD()
     return;
   }
 
-  DynamicJsonDocument manual(128);
+  DynamicJsonDocument manual(512);
 
   DeserializationError error = deserializeJson(manual, manualFile);
+  manualFile.close();
+
   if (error)
   {
-    PRINTLN(F("deserializeJson() failed with code "));
+    PRINTLN(F("Failed to serialize manual irrigation file"));
     PRINTLN(error.c_str());
 
     return;
   }
-
-  manualFile.close();
 
   JsonObject eventData = manual.as<JsonObject>();
 
@@ -1011,7 +1017,7 @@ void addManualEventToCalendar(const JsonObject &eventData)
     return;
   }
 
-  MyCalendar.remove(MANUAL_IRRIGATION_EVENT_ID);
+  MyCalendar.removeAll(MANUAL_IRRIGATION_EVENT_ID);
   if (MyCalendar.add(Chronos::Event(MANUAL_IRRIGATION_EVENT_ID, Chronos::DateTime::now(), Chronos::DateTime::now() + Chronos::Span::Minutes(duration), _channels)))
   {
     DynamicJsonDocument manual(128);
