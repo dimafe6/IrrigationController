@@ -1235,7 +1235,7 @@ void initSD()
 {
   pinMode(SD_MOSI, INPUT_PULLUP);
   spiSD.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
-  if (!SD.begin(SD_CS, spiSD))
+  if (!SD.begin(SD_CS, spiSD, 80000000))
   {
     LOG("Card Mount Failed");
     return;
