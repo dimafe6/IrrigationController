@@ -13,6 +13,7 @@ let availableSlots;
 let calendar;
 let currentTime = null;
 let eventsTable = null;
+let channelNames = [];
 
 let compareOccurences = (a, b) => (a.from < b.from ? 1 : -1);
 
@@ -105,7 +106,7 @@ $(document).ready(() => {
 
     $('#periodicity')
         .change(function () {
-            switch (+$(this).val()) {
+            switch (parseInt($(this).val())) {
                 case 0:
                     $('.period-block ').hide();
                     $('.period-block.hourly').show();
@@ -149,13 +150,8 @@ $(document).ready(() => {
         removeEvent(+$(this).closest('tr').find('td:first').text());
     });
 
-    eventsTable = $('#events-list').DataTable({
-        paging: false,
-        dom: 'rt'
-    });
-
     $(document).on('click', '.event-action-edit', function () {
-        let evId = +$(this).closest('tr').find('td:first').text();
+        let evId = parseInt($(this).closest('tr').find('td:first').text());
         let slot = getSlotById(evId);
         if (!slot) {
             return;
@@ -459,10 +455,10 @@ function processSlots(data = null) {
     let $eventTableBody = $('#events-list tbody');
     calendarEvents = data;
     if (calendarEvents) {
+        $eventTableBody.empty();
         $('#calendar').fullCalendar('refetchEvents');
         $('#calendar').fullCalendar('rerenderEvents');
 
-        eventsTable.clear().draw();
         let total = +calendarEvents.total;
         let occupied = +calendarEvents.occupied;
         let available = total - occupied;
@@ -498,21 +494,21 @@ function processSlots(data = null) {
 
             if (slot) {
                 let duration = moment.duration(slot.duration, 'minutes').format('HH[h]:mm[m]');
-                let periodicity = periodicityList[slot.periodicity] || null;
-                let channels = slot.channels ? JSON.stringify(slot.channels) : '';
+                let names = [];
                 let color = enabled ? "#333" : "#999";
+
+                $.each(slot.channels, (index, chId) => names.push(channelNames.find(n => n.id === chId).name));
 
                 tr = `<tr data-enabled="${enabled}" style="color: ${color}">
                         <td class="evId" data-evid="${i}">${i}</td>
-                        <td>${periodicity}</td>
+                        <td>${slot.title}</td>
                         <td>${duration}</td>
-                        <td>${channels}</td>
-                        ${actions}
+                        <td>${names}</td>
+                        <td>${actions}</td>
                      </tr>`;
             }
 
             $eventTableBody.append(tr);
-            eventsTable.draw();
         }
     }
 }
@@ -523,32 +519,34 @@ function WebSocketBegin(location) {
         ws.onopen = function () {
             $('#ws-n-conn').hide();
             getSettings();
+            getWiFiConfig();
             getSysInfo();
             getChannelNames();
-            getSlots();
         };
 
         ws.onmessage = function (evt) {
             let jsonObject = JSON.parse(evt.data);
-
-            console.log(jsonObject);
             let command = jsonObject.command || null;
             if (command) {
                 let data = jsonObject.data || null;
-                var msg = jsonObject.msg || null;
                 switch (command) {
+                    case 'manualIrrigation':
+                        $('#manual-mode .stop-irrigation-btn').show();
+                        $('#manual-mode .start-irrigation-btn').hide();
+                        notify('Manual irrigation has been started', 'success');
+                        break;
                     case 'stopManualIrrigation':
                         $('#manual-mode .stop-irrigation-btn').hide();
                         $('#manual-mode .start-irrigation-btn').show();
-                        notify('Manual irrigation finished', 'success');
+                        notify('Manual irrigation has been finished', 'success');
                         break;
                     case 'addOrEditSchedule':
-                        notify('Schedule added/updated', 'success');
+                        notify('Schedule has been added/updated', 'success');
+                        $('.add-schedule').prop("disabled", 0);
                         cancelEditSchedule();
                         break;
                     case 'getSlots':
                         processSlots(data);
-                        $('.add-schedule').prop("disabled", !(availableSlots > 0));
                         getSchedule();
                         break;
                     case 'getSysInfo':
@@ -650,43 +648,64 @@ function WebSocketBegin(location) {
                         $('.w-ground-hum').html(`${data.groundHum}`);
                         break;
                     case 'getChannelNames':
-                        let isEdited = $('.save-channel-names-btn').is(":disabled");
+                        channelNames = data;
+                        $('#channel-statuses').empty();
+                        $('#manual-mode-zones, #schedule-mode-zones').empty();
+                        $('#channel-names tbody').empty();
 
-                        if (isEdited) {
-                            notify('Channel names has been saved.', 'success');
-                            $('.save-channel-names-btn').prop('disabled', false);
-                            $('#channel-statuses').empty();
-                            $('#manual-mode-zones, #schedule-mode-zones').empty();
-                            $('#channel-names tbody').empty();
-                        }
+                        let channelsTemplate = $("#dash-channel-status-block div:first").clone();
+                        let channelBlock = $("#channel-statuses");
+                        $.each(data, function () {
+                            let channelStatus = channelsTemplate.clone();
+                            channelStatus.find('.channel-id').attr('data-zone', this.id);
+                            channelStatus.find('.channel-name').html(this.name);
+                            channelStatus.show();
+                            $("#channel-statuses").append(channelStatus);
+                            $('#manual-mode-zones, #schedule-mode-zones').append(`<option value="${this.id}">${this.name}</option>`);
+                            $('#channel-names tbody').append(
+                                `<tr>
+                                    <td style="vertical-align: middle;">${this.id}</td>
+                                    <td style="padding: 0;">
+                                        <input style="border: none; padding: 0px 5px;" class="form-control input-sm" maxlength="25" value="${this.name}"></input>
+                                    </td>
+                                </tr>`
+                            );
+                        });
 
-                        if ($('#channel-statuses .channel-id').length <= 0) {
-                            let channelsTemplate = $("#dash-channel-status-block div:first").clone();
-                            let channelBlock = $("#channel-statuses");
-                            $.each(data, function () {
-                                let channelStatus = channelsTemplate.clone();
-                                channelStatus.find('.channel-id').attr('data-zone', this.id);
-                                channelStatus.find('.channel-name').html(this.name);
-                                channelStatus.show();
-                                $("#channel-statuses").append(channelStatus);
-                                $('#manual-mode-zones, #schedule-mode-zones').append(`<option value="${this.id}">${this.name}</option>`);
-                                $('#channel-names tbody').append(
-                                    `<tr>
-                                        <td style="vertical-align: middle;">${this.id}</td>
-                                        <td style="padding: 0;">
-                                            <input style="border: none; padding: 0px 5px;" class="form-control input-sm" maxlength="25" value="${this.name}"></input>
-                                        </td>
-                                    </tr>`
-                                );
-                            });
-                        }
+                        getSlots();
+                        break;
+                    case 'saveChannelNames':
+                        notify('Channel names have been saved', 'success');
+                        $('.save-channel-names-btn').prop('disabled', false);
                         break;
                     case 'debug':
-                        $('#logs-textarea').append(`${msg}\r\n`);
+                        $('#logs-textarea').append(`${data}\r\n`);
                         break;
-                    case 'getSettings':                    
+                    case 'getSettings':
                         let settings = updateObjectInLocalStorage("settings", data);
                         $('.location-typeahead').val(settings.location);
+                        break;
+                    case 'saveSettings':
+                        notify('Settings have been saved', 'success');
+                        break;
+                    case 'getWiFiConfig':
+                        $("#ssid").val(data.ssid);
+                        $("#pass").val(data.password)
+                        break;
+                    case 'removeEvent':
+                        notify("Event has been removed", 'success');
+                        break;
+                    case 'enableEvent':
+                        notify("Event has been enabled", 'success');
+                        break;
+                    case 'disableEvent':
+                        notify("Event has been disabled", 'success');
+                        break;
+                    case 'skipEvent':
+                        notify("Event has been skipped", 'success');
+                        break;
+                    case 'setTime':
+                        notify("Time has been updated", 'success');
                         break;
                 }
             }
@@ -724,7 +743,7 @@ function getSchedule() {
     let $scheduleBlock = $('#schedule-mode');
     let eventSlot = {};
     let checked = $('#schedule-mode-zones').val().map((val) => +val);
-    let evId = +$('#evId').val();
+    let evId = parseInt($('#evId').val());
 
     eventSlot.duration = +$scheduleBlock.find('.duration').val();
     eventSlot.channels = checked;
@@ -734,7 +753,7 @@ function getSchedule() {
         eventSlot.evId = evId;
     }
     let maxDuration = 59;
-    switch (+$('#periodicity').val()) {
+    switch (parseInt($('#periodicity').val())) {
         case 0:
             eventSlot.minute = +$('.period-block.hourly').find('.time-minute').val();
             eventSlot.second = +$('.period-block.hourly').find('.time-second').val();
@@ -798,6 +817,7 @@ function getSchedule() {
                 $scheduleBlock.find('.duration').val(maxDuration);
                 eventSlot.duration = maxDuration;
             }
+            break;
         case 6:
             let date = $('#one-time-datetimepicker').data("DateTimePicker").viewDate();
             eventSlot.year = date.year();
@@ -870,6 +890,7 @@ function getExplanationForSchedule(scheduleObject) {
             on = `${currDate.format('HH:mm')}`;
             explanationString = `Irrigation for zone(s) ${zonesString} every month on ${currDate.format('HH[h]:mm[m][00s]')} with a duration of ${durationStr}\n${getExamples(currDate, scheduleObject, 1, 'M')}`;
             title = `Every month`;
+            break;
         case 6:
             currDate = moment([scheduleObject.year, scheduleObject.month - 1, scheduleObject.day, scheduleObject.hour, scheduleObject.minute, scheduleObject.second, 0]);
             on = `${currDate.format('YYYY-MM-DD HH:mm:ss')}`;
@@ -878,7 +899,7 @@ function getExplanationForSchedule(scheduleObject) {
             break;
     }
 
-    $('.event-title').val(`${+calendarEvents.occupied || 0}. ${title} on ${on}`);
+    $('.event-title').val(`${title} on ${on}`);
 
     return explanationString;
 }
@@ -905,12 +926,14 @@ function addOrEditSchedule() {
 
 function stopManualIrrigation() {
     sendWSCommand("stopManualIrrigation");
-    $('#manual-mode .stop-irrigation-btn').hide();
-    $('#manual-mode .start-irrigation-btn').show();
 }
 
 function saveWifiConfig() {
-    sendWSCommand("WiFiConfig", { ssid: $("#ssid").val(), pass: $("#pass").val() });
+    sendWSCommand("saveWiFiConfig", { ssid: $("#ssid").val(), pass: $("#pass").val() });
+}
+
+function getWiFiConfig() {
+    sendWSCommand("getWiFiConfig");
 }
 
 function getSlots() {
@@ -923,7 +946,7 @@ function removeEvent(evId) {
 }
 
 function setEventEnabled(evId, enabled = true) {
-    sendWSCommand("setEventEnabled", { evId, enabled });
+    sendWSCommand(enabled ? "enableEvent" : "disableEvent", { evId, enabled });
     $('.action-btn').prop('disabled', 1);
 }
 

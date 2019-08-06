@@ -122,7 +122,7 @@ void LOG(const char *msg)
   sprintf(message, "[%04u-%02u-%02u %02u:%02u:%02u]: %s", year(), month(), day(), hour(), minute(), second(), msg);
   Serial.println(message);
   char debugJson[512];
-  sprintf(debugJson, "{\"command\":\"debug\", \"msg\":\"%s\"}", message);
+  sprintf(debugJson, "{\"command\":\"debug\", \"data\":\"%s\"}", message);
 
   if (ws.count() > 0)
   {
@@ -269,7 +269,6 @@ void saveChannelNames(const JsonArray &data)
 
     serializeJson(channelsDoc, channelsFile);
     channelsFile.close();
-    sendChannelNamesToWS();
   }
 }
 
@@ -441,6 +440,13 @@ void WSTextAll(String msg)
   }
 }
 
+void WSSendCommandResponse(const char *command)
+{
+  char buffer[255];
+  sprintf(buffer, "{\"command\":\"%s\"}", command);
+  WSTextAll(String(buffer));
+}
+
 void initWebServer()
 {
   ws.onEvent(onWsEvent);
@@ -560,6 +566,16 @@ void loadCalendarFromSD()
     addEventToCalendar(evId, eventData);
     evId++;
   }
+}
+
+void sendWiFiConfig()
+{
+  DynamicJsonDocument config(512);
+  config["command"] = "getWiFiConfig";
+  JsonObject data = config.createNestedObject("data");
+  data["ssid"] = WiFi.SSID();
+  data["password"] = WiFi.psk();
+  sendDocumentToWs(config);
 }
 
 void sendSlotsToWS()
@@ -830,7 +846,6 @@ void stopManualIrrigation()
   MyCalendar.remove(MANUAL_IRRIGATION_EVENT_ID);
   calendarLastCheck = 0;
   SD.remove(MANUAL_IRRIGATION_FILE_NAME);
-  WSTextAll(MANUAL_IRRIGATION_STOP);
 }
 
 void addOrEditSchedule(const JsonObject &eventData)
@@ -896,8 +911,6 @@ void addOrEditSchedule(const JsonObject &eventData)
   calendarLastCheck = 0;
 
   sendSlotsToWS();
-
-  WSTextAll(SCHEDULE_ADD_EDIT);
 }
 
 bool addEventToCalendar(byte evId, const JsonObject &eventData)
@@ -978,6 +991,7 @@ bool addEventToCalendar(byte evId, const JsonObject &eventData)
 
     eventSaved = MyCalendar.add(Chronos::Event(evId, Chronos::Mark::Monthly(dayOfMonth, hour, minute), Chronos::Span::Minutes(duration), _channels, isEnabled));
   }
+  break;
   case Periodicity::ONCE:
   {
     int year = eventData["year"];
@@ -1061,13 +1075,16 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
     if (!root.isNull())
     {
       String command = root["command"];
-      if (command == "WiFiConfig")
+      if (command == "saveWiFiConfig")
       {
         const char *ssid = root["data"]["ssid"];
         const char *password = root["data"]["pass"];
-
         WiFi.begin(ssid, password);
         WiFi.reconnect();
+      }
+      else if (command == "getWiFiConfig")
+      {
+        sendWiFiConfig();
       }
       else if (command == "getSlots")
       {
@@ -1077,26 +1094,40 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       {
         removeEvent(root["data"]["evId"]);
         sendSlotsToWS();
+        WSSendCommandResponse(command.c_str());
       }
       else if (command == "manualIrrigation")
       {
         addManualEventToCalendar(root["data"]);
+        WSSendCommandResponse(command.c_str());
       }
       else if (command == "stopManualIrrigation")
       {
         stopManualIrrigation();
+        WSSendCommandResponse(command.c_str());
       }
       else if (command == "addOrEditSchedule")
       {
         addOrEditSchedule(root["data"]);
+        WSSendCommandResponse(command.c_str());
       }
-      else if (command == "setEventEnabled")
+      else if (command == "enableEvent")
       {
-        if (!setEventEnabled(root["data"]["evId"], root["data"]["enabled"]))
+        if (!setEventEnabled(root["data"]["evId"], true))
         {
-          LOG("Error set event enabled");
+          LOG("Error enabling event");
         }
         sendSlotsToWS();
+        WSSendCommandResponse(command.c_str());
+      }
+      else if (command == "disableEvent")
+      {
+        if (!setEventEnabled(root["data"]["evId"], false))
+        {
+          LOG("Error event disabling");
+        }
+        sendSlotsToWS();
+        WSSendCommandResponse(command.c_str());
       }
       else if (command == "skipEvent")
       {
@@ -1109,6 +1140,7 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
           removeEvent(root["data"]["evId"]);
           sendSlotsToWS();
         }
+        WSSendCommandResponse(command.c_str());
       }
       else if (command == "getChannelNames")
       {
@@ -1117,6 +1149,8 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
       else if (command == "saveChannelNames")
       {
         saveChannelNames(root["data"]);
+        sendChannelNamesToWS();
+        WSSendCommandResponse(command.c_str());
       }
       else if (command == "setTime")
       {
@@ -1127,10 +1161,12 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
         Chronos::DateTime::now().printTo(Serial);
 
         calendarLastCheck = 0;
+        WSSendCommandResponse(command.c_str());
       }
       else if (command == "saveSettings")
       {
         saveSettings(root["data"]);
+        WSSendCommandResponse(command.c_str());
       }
       else if (command == "getSettings")
       {

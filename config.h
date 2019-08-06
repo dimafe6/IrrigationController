@@ -43,10 +43,6 @@
 /* SD card configuration */
 #define SCHEDULE_FILE_SIZE 8000
 
-/* WS messages */
-#define MANUAL_IRRIGATION_STOP "{\"command\":\"stopManualIrrigation\"}"
-#define SCHEDULE_ADD_EDIT "{\"command\":\"addOrEditSchedule\"}"
-
 /* Statistic */
 #define SAVE_STATISTIC_INTERVAL 5000
 #define WATER_STATISTIC_FILE "/water_statistic_%d_%d.json"
