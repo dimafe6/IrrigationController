@@ -684,9 +684,8 @@ function WebSocketBegin(location) {
                     case 'debug':
                         $('#logs-textarea').append(`${msg}\r\n`);
                         break;
-                    case 'getSettings':
-                        let settings = updateObjectInLocalStorage(data);
-
+                    case 'getSettings':                    
+                        let settings = updateObjectInLocalStorage("settings", data);
                         $('.location-typeahead').val(settings.location);
                         break;
                 }
