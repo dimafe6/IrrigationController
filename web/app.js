@@ -1,5 +1,4 @@
 const weekNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thuesday", "Friday", "Saturday"];
-const periodicityList = { "0": "Hourly", "1": "Every X hours", "2": "Daily", "3": "Every X days", "4": "Weekly", "5": "Monthly", "6": "Once", };
 const accuWeatherAPIKey = "dDDoPqyCFBSiBC2NeODxjvyrruUO4mgu";
 const accuWeatherApiDomain = 'http://dataservice.accuweather.com';
 const apixuAPIKey = "4e3720d2b7234ec8b8585710191907";
@@ -1048,7 +1047,7 @@ function getForecastFromApixu() {
     });
 }
 
-function showForecastDayOnCalendar(date, iconUrl, iconAlt, tempMin, tempMax, uvIndex, totalprecip, eto = null) {
+function showForecastDayOnCalendar(date, iconUrl, iconAlt, tempMin, tempMax, uvIndex, totalprecip, eto = null, Dc, source) {
     let monthDayElement = $(`td.fc-day[data-date="${date}"]`),
         weekHeaderElement = $(`th.fc-day-header[data-date="${date}"]`),
         uvIndexColor = "green",
@@ -1066,18 +1065,29 @@ function showForecastDayOnCalendar(date, iconUrl, iconAlt, tempMin, tempMax, uvI
         uvIndexColor = "#aa5b99";
         uvIndexTitle = "Can't go outdor";
     }
+
+    //TODO: Change Dc color depending on the Dc value
+    let DcColor = '#333';
+
     let template = `
     <div class='weather-block'>
-        <img src='${iconUrl}' alt='${iconAlt}' title='${iconAlt}'/>
-        <div style="margin-left: 6px" class="hidden-xs">
+        <img class="${source}" src='${iconUrl}' alt='${iconAlt}' title='${iconAlt}'/>
+        <div class="hidden-xs">
             <span title="Min temperature" style="font-size: 11px"><i class="fa fa-temperature-low"/> ${tempMin}°C</span>                    
-            <span title="Max temperature" style="font-size: 11px"><i class="fa fa-temperature-high"/> ${tempMax}°C</span>
+            <span title="Max temperature" style="font-size: 11px"><i class="fa fa-temperature-high"/> ${tempMax}°C</span>        
         </div>
-        <div style="margin-left: 5px" class="hidden-xs">
-            <span title="UV-index(${uvIndexTitle})" style="font-size: 11px; color: ${uvIndexColor}"><i class="fa fa-sun"/> ${uvIndex}</span>    
-            <span title="Amount of precipitation" style="font-size: 11px"><i class="fa fa-tint"/> ${totalprecip}mm </span>                    
-            ${!eto ? "" : `<span title="Evapotranspiration" style="font-size: 11px">ETo: ${eto}mm</span>`}
+        <div class="hidden-xs">
+            <span title="UV-index(${uvIndexTitle})" style="font-size: 11px; color: ${uvIndexColor}"><i class="fa fa-sun"/> ${uvIndex}</span>
         </div>
+        <div class="hidden-xs" style="margin: -5px 0 0 5px">
+            ${!eto ? "" : `<span title="Evapotranspiration" style="font-size: 11px"><b>ETo:</b> ${eto}mm</span>`}
+            <span title="Amount of precipitation" style="font-size: 11px"><i class="fa fa-tint"/> ${totalprecip}mm </span>
+        </div>
+        <!--
+        TODO: Complete calculation Dc and show this bloc
+        <div class="hidden-xs" style="margin-left: 5px">
+            <span title="Soil moisture deficit" style="font-size: 11px"><b>Dc</b>: ${Dc}mm</span>
+        </div>-->
     </div>`;
 
     monthDayElement.append(template);
@@ -1092,6 +1102,8 @@ function showForecastFromApixuOnCalendar() {
             let settings = getObjectFromLocalStorage("settings");
             if (!$.isEmptyObject(apixuForecast)) {
                 $('.weather-block').remove();
+                let Dp = 0;
+                let Dc = 0;
                 $.each(apixuForecast.forecast.forecastday, (index, forecast) => {
                     let hoursOfSun = null;
 
@@ -1102,6 +1114,25 @@ function showForecastFromApixuOnCalendar() {
                         }
                     });
 
+                    let eto = ETo(
+                        +forecast.day.maxtemp_c,
+                        +forecast.day.mintemp_c,
+                        null,
+                        null,
+                        +forecast.day.avghumidity / 100,
+                        hoursOfSun,
+                        null,
+                        moment().date(),
+                        moment().month() - 1,
+                        settings.lat,
+                        settings.elevation,
+                        +forecast.day.maxwind_kph
+                    );
+
+                    Dc = Dp + +eto - +forecast.day.totalprecip_mm;
+                    Dc = Dc.toFixed(1);
+                    Dp = +Dc;
+
                     showForecastDayOnCalendar(
                         forecast.date,
                         forecast.day.condition.icon,
@@ -1110,20 +1141,9 @@ function showForecastFromApixuOnCalendar() {
                         forecast.day.maxtemp_c,
                         forecast.day.uv,
                         forecast.day.totalprecip_mm,
-                        ETo(
-                            +forecast.day.maxtemp_c,
-                            +forecast.day.mintemp_c,
-                            null,
-                            null,
-                            +forecast.day.avghumidity / 100,
-                            hoursOfSun,
-                            null,
-                            moment().date(),
-                            moment().month() - 1,
-                            settings.lat,
-                            settings.elevation,
-                            +forecast.day.maxwind_kph
-                        )
+                        eto,
+                        Dc,
+                        'apixu'
                     );
                 });
             }
@@ -1135,10 +1155,12 @@ function showForecastFromAccuWeatherOnCalendar() {
         if (!$.isEmptyObject(weatherData)) {
             $('.weather-block').remove();
             let settings = getObjectFromLocalStorage("settings");
+            let Dp = 0;
+            let Dc = 0;
             $.each(weatherData.DailyForecasts, (index, forecast) => {
                 let date = moment(moment.unix(forecast.EpochDate)).format("YYYY-MM-DD"),
                     dayIcon = `https://developer.accuweather.com/sites/default/files/${forecast.Day.Icon.toString().padStart(2, 0)}-s.png`,
-                    totalprecip = (+forecast.Day.TotalLiquid.Value + forecast.Night.TotalLiquid.Value).toFixed(1),
+                    totalprecip = (+forecast.Day.TotalLiquid.Value + +forecast.Night.TotalLiquid.Value).toFixed(1),
                     uvIndex = -1;
                 $.each(forecast.AirAndPollen, (index, el) => {
                     if (el.Name === "UVIndex") {
@@ -1146,6 +1168,24 @@ function showForecastFromAccuWeatherOnCalendar() {
                         return false;
                     }
                 });
+
+                let eto = ETo(
+                    +forecast.Temperature.Maximum.Value,
+                    +forecast.Temperature.Minimum.Value,
+                    null,
+                    null,
+                    null,
+                    +forecast.HoursOfSun,
+                    null,
+                    moment().date(),
+                    moment().month() - 1,
+                    settings.lat,
+                    settings.elevation,
+                    +forecast.Day.Wind.Speed.Value
+                );
+                Dc = Dp + +eto - +totalprecip;
+                Dc = Dc.toFixed(1);
+                Dp = +Dc;
 
                 showForecastDayOnCalendar(
                     date,
@@ -1155,20 +1195,9 @@ function showForecastFromAccuWeatherOnCalendar() {
                     forecast.Temperature.Maximum.Value,
                     uvIndex,
                     totalprecip,
-                    ETo(
-                        +forecast.Temperature.Maximum.Value,
-                        +forecast.Temperature.Minimum.Value,
-                        null,
-                        null,
-                        null,
-                        +forecast.HoursOfSun,
-                        null,
-                        moment().date(),
-                        moment().month() - 1,
-                        settings.lat,
-                        settings.elevation,
-                        +forecast.Day.Wind.Speed.Value
-                    )
+                    eto,
+                    Dc,
+                    'accuweather'
                 );
             });
         }
