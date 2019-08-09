@@ -275,7 +275,18 @@ $(document).ready(() => {
     $(document).on('click', '.forecast-apixu', showForecastFromApixuOnCalendar);
 
     $(document).on('click', '.forecast-accuweather', showForecastFromAccuWeatherOnCalendar);
+
+    $(document).on('click', '.fc-more', initEventTooltip);
 });
+
+function initEventTooltip() {
+    $('[data-toggle="popover"]').popover({
+        trigger: 'hover',
+        placement: 'top',
+        container: 'body',
+        html: true
+    });
+}
 
 function sendWSCommand(command, data = null) {
     console.log(JSON.stringify(!data ? { command } : { command, data }));
@@ -330,7 +341,7 @@ function initCalendar() {
                 .attr('data-toggle', 'popover')
                 .attr('title', event.title)
                 .attr('data-content', `
-                <div><attr>Start: ${event.start.format("YYYY-MM-DD HH:mm:ss")}</span></div>
+                <div><span>Start: ${event.start.format("YYYY-MM-DD HH:mm:ss")}</span></div>
                 <div><span>Finish: ${event.end.format("YYYY-MM-DD HH:mm:ss")}</span></div>
                 <div><span>Duration: ${duration}</span></div>
                 <div><span>Channels: ${names}</span></div>
@@ -434,15 +445,8 @@ function initCalendar() {
                 callback(events);
             }
         },
-        viewRender: () => {
-            fetchWeatherForecast();
-            $('[data-toggle="popover"]').popover({
-                trigger: 'hover',
-                placement: 'top',
-                container: 'body',
-                html: true
-            });
-        }
+        viewRender: fetchWeatherForecast,
+        eventAfterAllRender: initEventTooltip
     });
 }
 
