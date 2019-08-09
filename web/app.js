@@ -285,6 +285,8 @@ function sendWSCommand(command, data = null) {
 function initCalendar() {
     calendar = $('#calendar').fullCalendar({
         themeSystem: 'bootstrap3',
+        slotEventOverlap: false,
+        displayEventTime: false,
         slotDuration: "00:15:00",
         defaultView: 'month',
         header: {
@@ -320,8 +322,25 @@ function initCalendar() {
             $('#schedule-mode .duration').val(moment.duration(endDate.diff(startDate)).as('minutes'));
             $("a[href='#schedule-mode']").click();
         },
+        eventRender: function (event, $el) {
+            let names = [];
+            $.each(event.channels, (index, chId) => names.push(channelNames.find(n => n.id === chId).name));
+            let duration = moment.duration(event.duration, 'minutes').format('H[h]:m[m]')
+            $el
+                .attr('data-toggle', 'popover')
+                .attr('title', event.title)
+                .attr('data-content', `
+                <div><attr>Start: ${event.start.format("YYYY-MM-DD HH:mm:ss")}</span></div>
+                <div><span>Finish: ${event.end.format("YYYY-MM-DD HH:mm:ss")}</span></div>
+                <div><span>Duration: ${duration}</span></div>
+                <div><span>Channels: ${names}</span></div>
+                `);
+        },
         events: (start, end, timezone, callback) => {
             var events = [];
+            var addEvent = function (data, slot) {
+                events.push({ ...data, ...slot });
+            };
             var processInterval = function (interval, slot) {
                 var occurences = interval.all();
                 for (var i = 0; i < occurences.length; i++) {
@@ -332,11 +351,10 @@ function initCalendar() {
                     }
                     var endDate = moment(startDate);
                     endDate.add(slot.duration, 'm');
-                    events.push({
-                        title: slot.title,
+                    addEvent({
                         start: startDate,
                         end: endDate
-                    });
+                    }, slot);
                 };
             };
 
@@ -359,11 +377,10 @@ function initCalendar() {
                                     var endDate = moment(currDate);
                                     endDate.add(slot.duration, 'm');
                                     var startDate = moment(currDate);
-                                    events.push({
-                                        title: slot.title,
+                                    addEvent({
                                         start: startDate,
                                         end: endDate
-                                    });
+                                    }, slot);
 
                                     currDate.add(1, 'h');
                                 }
@@ -377,11 +394,10 @@ function initCalendar() {
                                     var endDate = moment(currDate);
                                     endDate.add(slot.duration, 'm');
                                     var startDate = moment(currDate);
-                                    events.push({
-                                        title: slot.title,
+                                    addEvent({
                                         start: startDate,
                                         end: endDate
-                                    });
+                                    }, slot);
 
                                     currDate.add(slot.hours, 'h');
                                 }
@@ -406,11 +422,10 @@ function initCalendar() {
                                 var startDate = moment([slot.year, slot.month - 1, slot.day, slot.hour, slot.minute, slot.second, 0]);
                                 var endDate = moment(startDate);
                                 endDate.add(slot.duration, 'm');
-                                events.push({
-                                    title: slot.title,
+                                addEvent({
                                     start: startDate,
                                     end: endDate
-                                });
+                                }, slot);
                                 break;
                         }
                     }
@@ -419,7 +434,15 @@ function initCalendar() {
                 callback(events);
             }
         },
-        viewRender: fetchWeatherForecast
+        viewRender: () => {
+            fetchWeatherForecast();
+            $('[data-toggle="popover"]').popover({
+                trigger: 'hover',
+                placement: 'top',
+                container: 'body',
+                html: true
+            });
+        }
     });
 }
 
