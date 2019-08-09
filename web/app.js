@@ -1048,8 +1048,8 @@ function getForecastFromApixu() {
 }
 
 function showForecastDayOnCalendar(date, iconUrl, iconAlt, tempMin, tempMax, uvIndex, totalprecip, eto = null, Dc, source) {
-    let monthDayElement = $(`td.fc-day[data-date="${date}"]`),
-        weekHeaderElement = $(`th.fc-day-header[data-date="${date}"]`),
+    let monthDayElement = $(`.fc-month-view td.fc-day[data-date="${date}"]`),
+        weekHeaderElement = $(`.fc-agenda-view th.fc-day-header[data-date="${date}"]`),
         uvIndexColor = "green",
         uvIndexTitle = "No protection required";
     if (uvIndex >= 3 && uvIndex <= 5) {
