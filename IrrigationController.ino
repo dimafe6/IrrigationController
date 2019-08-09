@@ -11,6 +11,7 @@
 #include <SPIFFSEditor.h>
 #include <Time.h>
 #include <Update.h>
+#include <ESPmDNS.h>
 #include "src/Chronos/src/Chronos.h"
 
 SPIClass spiSD(HSPI);
@@ -1555,6 +1556,13 @@ void WiFiEvent(WiFiEvent_t event)
     char tmp[64];
     sprintf(tmp, "Obtained IP address: %s", WiFi.localIP().toString());
     LOG(tmp);
+    if (!MDNS.begin("irrcon"))
+    {
+      Serial.println("Error setting up MDNS responder!");
+    }
+    Serial.println("mDNS responder started");
+
+    MDNS.addService("http", "tcp", 80);
     break;
   case SYSTEM_EVENT_STA_LOST_IP:
     LOG("Lost IP address and IP address is reset to 0");
