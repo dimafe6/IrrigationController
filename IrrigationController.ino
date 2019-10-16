@@ -1,13 +1,13 @@
 #include "secrets.h"
 #include "config.h"
-#include <ArduinoJson.h> //6.11.0
+#include <ArduinoJson.h> //6.12.0
 #include <Wire.h>
 #include <RtcDS3231.h> //2.3.3
 #include <WiFi.h>
 #include <FS.h>
 #include <SPIFFS.h>
 #include "SD.h"
-#include <ESPAsyncWebServer.h> //a0d5c618ffdf976890a18a5e05e8ccd5c1ea90ed
+#include <ESPAsyncWebServer.h> //a84f16989aa472658df2ed13b0399c0cdf3d7ece
 #include <SPIFFSEditor.h>
 #include <Time.h>
 #include <Update.h>
@@ -871,6 +871,7 @@ void addOrEditSchedule(const JsonObject &eventData)
     MyCalendar.skipEvent(evId, Chronos::DateTime(1970, 1, 1));
     eventData["enabled"] = MyCalendar.isEnabled(evId);
     MyCalendar.removeAll(evId);
+    loadManualIrrigationFromSD();
   }
   else
   {
