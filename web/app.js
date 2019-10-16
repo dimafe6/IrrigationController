@@ -1,8 +1,6 @@
 const weekNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thuesday", "Friday", "Saturday"];
 const accuWeatherAPIKey = "dDDoPqyCFBSiBC2NeODxjvyrruUO4mgu";
 const accuWeatherApiDomain = 'http://dataservice.accuweather.com';
-const apixuAPIKey = "4e3720d2b7234ec8b8585710191907";
-const apixuApiDomain = 'http://api.apixu.com/v1';
 const websocketServerLocation = `ws://${location.hostname}/ws`;
 const manualIrrigationEventId = 25;
 
@@ -254,15 +252,20 @@ $(document).ready(() => {
     initCalendar();
 
     $('.location-typeahead').typeahead({
-        display: 'name',
+        displayText: (item) => `${item.LocalizedName}, ${item.AdministrativeArea.LocalizedName}, ${item.Country.ID}`,
         delay: 1000,
-        source: (query, process) => $.get(`${apixuApiDomain}/search.json?key=${apixuAPIKey}`, { q: query }, (data) => process(data)),
+        source: (query, process) => $.get(`${accuWeatherApiDomain}/locations/v1/cities/autocomplete?apikey=${accuWeatherAPIKey}`, { q: query}, (data) => {
+            process(data);
+        }),
         afterSelect: (item) => {
-            let settings = updateObjectInLocalStorage("settings", { lat: item.lat, lon: item.lon, location: item.name });
-            $.get(`${accuWeatherApiDomain}/locations/v1/cities/geoposition/search?apikey=${accuWeatherAPIKey}&q=${settings.lat},${settings.lon}&toplevel=true`, (locationData) => {
+            let cityKey = item.Key;
+            $.get(`${accuWeatherApiDomain}/locations/v1/${cityKey}?apikey=${accuWeatherAPIKey}`, (locationData) => {
                 settings = updateObjectInLocalStorage("settings", {
                     elevation: locationData.GeoPosition.Elevation.Metric.Value,
-                    accuWeatherCityKey: locationData.Key
+                    accuWeatherCityKey: cityKey,
+                    lat: locationData.GeoPosition.Latitude,
+                    lon: locationData.GeoPosition.Longitude,
+                    location: locationData.EnglishName
                 });
 
                 sendWSCommand("saveSettings", settings);
@@ -271,10 +274,6 @@ $(document).ready(() => {
             });
         }
     });
-
-    $(document).on('click', '.forecast-apixu', showForecastFromApixuOnCalendar);
-
-    $(document).on('click', '.forecast-accuweather', showForecastFromAccuWeatherOnCalendar);
 
     $(document).on('click', '.fc-more', initEventTooltip);
 });
@@ -1011,19 +1010,10 @@ function getSettings() {
 
 function fetchWeatherForecast() {
     return new Promise(async (resolve, reject) => {
-        const values = await Promise.all([getForecastFromAccuWeather(), getForecastFromApixu()]);
-        if ($('.forecast-btn').length === 0) {
-            $(".fc-right").prepend(`
-            <div class="btn-group forecast-btn" data-toggle="buttons">
-                <label class="btn btn-sm btn-default forecast-apixu">
-                    <input type="radio" checked> Apixu forecast
-                </label>
-                <label class="btn btn-sm btn-default forecast-accuweather">
-                    <input type="radio" checked> AccuWeather forecast
-                </label>
-            </div>`);
-        }
-        $('.forecast-apixu').click();
+        const values = await getForecastFromAccuWeather();
+
+        showForecastFromAccuWeatherOnCalendar();
+
         resolve(values);
     });
 }
@@ -1047,29 +1037,6 @@ function getForecastFromAccuWeather() {
                 .fail(reject);
         } else {
             resolve(accuWeatherForecast);
-        }
-    });
-}
-
-function getForecastFromApixu() {
-    return new Promise((resolve, reject) => {
-        let settings = getObjectFromLocalStorage("settings"),
-            apixuForecast = getObjectFromLocalStorage("apixuForecast"),
-            apixuLastWeatherUpdate = !$.isEmptyObject(apixuForecast) ? apixuForecast.lastWeatherUpdate : moment().unix(),
-            apixuLastWeatherLat = !$.isEmptyObject(apixuForecast) ? apixuForecast.location.lat : null,
-            apixuLastWeatherLon = !$.isEmptyObject(apixuForecast) ? apixuForecast.location.lon : null,
-            // Last update more then 3h ago or location has been changed
-            locationChanged = Math.abs(apixuLastWeatherLat - settings.lat) > 0.2 || Math.abs(apixuLastWeatherLon - settings.lon) > 0.2,
-            apixuNeedUpdate = (moment().unix() - apixuLastWeatherUpdate > 10800) || locationChanged;
-        if (settings.location && ($.isEmptyObject(apixuForecast) || apixuNeedUpdate)) {
-            $.get(`${apixuApiDomain}/forecast.json?key=${apixuAPIKey}&q=${settings.location}&days=10&lang=en`)
-                .done((weatherData) => {
-                    weatherData.lastWeatherUpdate = moment().unix();
-                    resolve(updateObjectInLocalStorage("apixuForecast", weatherData));
-                })
-                .fail(reject);
-        } else {
-            resolve(apixuForecast);
         }
     });
 }
@@ -1119,62 +1086,6 @@ function showForecastDayOnCalendar(date, iconUrl, iconAlt, tempMin, tempMax, uvI
 
     monthDayElement.append(template);
     weekHeaderElement.append(template);
-}
-
-function showForecastFromApixuOnCalendar() {
-    Promise
-        .all([getForecastFromAccuWeather(), getForecastFromApixu()])
-        .then((weatherData) => {
-            let [accuWeatherForecast, apixuForecast] = weatherData;
-            let settings = getObjectFromLocalStorage("settings");
-            if (!$.isEmptyObject(apixuForecast)) {
-                $('.weather-block').remove();
-                let Dp = 0;
-                let Dc = 0;
-                $.each(apixuForecast.forecast.forecastday, (index, forecast) => {
-                    let hoursOfSun = null;
-
-                    $.each(accuWeatherForecast.DailyForecasts, (index, accuWeatherForecastDay) => {
-                        if (moment.unix(accuWeatherForecastDay.EpochDate).format("YYYY-MM-DD") === moment(forecast.date).format("YYYY-MM-DD")) {
-                            hoursOfSun = +accuWeatherForecastDay.HoursOfSun;
-                            return false;
-                        }
-                    });
-
-                    let eto = ETo(
-                        +forecast.day.maxtemp_c,
-                        +forecast.day.mintemp_c,
-                        null,
-                        null,
-                        +forecast.day.avghumidity / 100,
-                        hoursOfSun,
-                        null,
-                        moment().date(),
-                        moment().month() - 1,
-                        settings.lat,
-                        settings.elevation,
-                        +forecast.day.maxwind_kph
-                    );
-
-                    Dc = Dp + +eto - +forecast.day.totalprecip_mm;
-                    Dc = Dc.toFixed(1);
-                    Dp = +Dc;
-
-                    showForecastDayOnCalendar(
-                        forecast.date,
-                        forecast.day.condition.icon,
-                        forecast.day.condition.text,
-                        forecast.day.mintemp_c,
-                        forecast.day.maxtemp_c,
-                        forecast.day.uv,
-                        forecast.day.totalprecip_mm,
-                        eto,
-                        Dc,
-                        'apixu'
-                    );
-                });
-            }
-        });
 }
 
 function showForecastFromAccuWeatherOnCalendar() {
