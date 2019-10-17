@@ -47,3 +47,6 @@
 #define SAVE_STATISTIC_INTERVAL 5000
 #define WATER_STATISTIC_FILE "/water_statistic_%d_%d.json"
 #define STATISTIC_FILE_SIZE 5000
+
+/* Telegram */
+#define SCAN_MESSAGES_INTERVAL 3000
