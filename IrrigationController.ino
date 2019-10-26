@@ -12,11 +12,10 @@
 #include "SD.h"
 #include <ESPAsyncWebServer.h> //a84f16989aa472658df2ed13b0399c0cdf3d7ece
 #include <SPIFFSEditor.h>
-#include <Time.h>
 #include <Update.h>
 #include <ESPmDNS.h>
 #include "src/Chronos/src/Chronos.h"
-
+#include <TimeLib.h>
 SPIClass spiSD(HSPI);
 AsyncWebServer server(HTTP_PORT);
 AsyncWebSocket ws("/ws");
