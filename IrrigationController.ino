@@ -4,8 +4,6 @@
 #include <Wire.h>
 #include <RtcDS3231.h> //2.3.3
 #include <WiFi.h>
-#include <WiFiClientSecure.h>
-#include <UniversalTelegramBot.h>
 #include "StringSplitter.h"
 #include <FS.h>
 #include <SPIFFS.h>
@@ -26,8 +24,6 @@ DefineCalendarType(Calendar, CALENDAR_TOTAL_NUM_EVENTS);
 Calendar MyCalendar;
 AsyncWebHandler *spiffsEditorHandler;
 AsyncWebHandler *sdEditorHandler;
-WiFiClientSecure sslClient;
-UniversalTelegramBot bot(BOT_TOKEN, sslClient);
 
 enum Periodicity
 {
@@ -75,8 +71,6 @@ volatile float totalLitres = 0.0;
 volatile float currentDayLitres = 0.0;
 volatile float currentMonthLitres = 0.0;
 volatile float currentFlow = 0.0;
-long BotLastTime;
-TaskHandle_t telegramHandler;
 
 void setup()
 {
@@ -91,14 +85,6 @@ void setup()
   initSPIFFS();
   initWiFi();
   initWebServer();
-  xTaskCreatePinnedToCore(
-      telegramGetUpdates,
-      "Task1",
-      10000,
-      NULL,
-      1,
-      &telegramHandler,
-      0);
 }
 
 void loop()
@@ -184,14 +170,14 @@ static time_t getTime()
   return RTC.GetDateTime().Epoch32Time();
 }
 
+void IRAM_ATTR flowPulseCounter()
+{
+  flowPulses++;
+}
+
 void initFlowSensor()
 {
   attachInterrupt(digitalPinToInterrupt(FLOW_SENSOR_PIN), flowPulseCounter, FALLING);
-}
-
-void flowPulseCounter()
-{
-  flowPulses++;
 }
 
 void flowCalculate()
@@ -1642,74 +1628,4 @@ bool dateIsValid()
 {
   RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
   return year() >= compiled.Year();
-}
-
-void botSendCurrentSSID()
-{
-  if (WiFi.status() == WL_CONNECTED)
-  {
-    char tmp[64];
-    sprintf(tmp, "Current SSID: `%s`", WiFi.SSID().c_str());
-    bot.sendMessage(CHAT_ID, String(tmp), "Markdown");
-  }
-}
-
-void telegramGetUpdates(void *pvParameters)
-{
-  for (;;)
-  {
-    if (WiFi.status() == WL_CONNECTED)
-    {
-      int numNewMessages = bot.getUpdates(bot.last_message_received + 1);
-
-      while (numNewMessages)
-      {
-        LOG("Telegram message received!");
-
-        StringSplitter *splitter;
-
-        String SSID = "";
-        String password = "";
-
-        for (int i = 0; i < numNewMessages; i++)
-        {
-          String chatID = String(bot.messages[i].chat_id);
-          String text = bot.messages[i].text;
-
-          if (text.startsWith("/wifi"))
-          {
-            splitter = new StringSplitter(text, ' ', 3);
-            if (splitter->getItemCount() == 3)
-            {
-              SSID = splitter->getItemAtIndex(1);
-              password = splitter->getItemAtIndex(2);
-            }
-            else
-            {
-              botSendCurrentSSID();
-            }
-          }
-
-          if (text == "/start")
-          {
-            String tmp = "Welcome to Irrigation Controller Telegram Bot\n\n\
-/wifi : Get current WiFi SSID\n\
-/wifi `[SSID]` `[password]` : Connect to a new WiFi AP\n";
-
-            bot.sendMessage(chatID, tmp, "Markdown");
-          }
-        }
-
-        numNewMessages = bot.getUpdates(bot.last_message_received + 1);
-
-        // Save WiFi config after process all messages
-        if (!numNewMessages && SSID != "" && password != "")
-        {
-          saveWiFiConfig(SSID, password);
-        }
-      }
-    }
-    BotLastTime = millis();
-    delay(SCAN_MESSAGES_INTERVAL);
-  }
 }
